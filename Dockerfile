@@ -19,9 +19,13 @@ RUN apt-get update && \
 COPY requirements.txt .
 
 # 安装 Python 依赖（排除开发依赖）
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
+# 使用国内 PyPI 镜像，加快依赖安装
+RUN pip install --no-cache-dir --upgrade pip \
+        -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com && \
+    pip install --no-cache-dir -r requirements.txt \
+        -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com && \
     pip uninstall -y pytest pytest-asyncio
+
 
 # 复制应用代码
 COPY . .
