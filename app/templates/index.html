@@ -371,6 +371,14 @@
                             placeholder="搜索卡密、昵称或卡号..."
                             class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
+                        <input
+                            type="number"
+                            id="limitFilter"
+                            placeholder="筛选额度 (如: 1, 2, 5)"
+                            step="0.01"
+                            min="0"
+                            class="w-48 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
                         <select id="statusFilter" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">全部状态</option>
                             <option value="active">已激活</option>
@@ -388,7 +396,7 @@
                             <option value="used">已使用</option>
                             <option value="not_used">未使用</option>
                         </select>
-                        <button onclick="loadCards()" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition">
+                        <button onclick="loadCards()" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition flex-shrink-0">
                             搜索
                         </button>
                     </div>
@@ -410,6 +418,9 @@
                                 </button>
                                 <button onclick="batchCopyCards()" class="px-4 py-2 bg-indigo-500 text-white text-sm rounded-lg hover:bg-indigo-600 transition">
                                     批量复制
+                                </button>
+                                <button onclick="batchCopyCardIds()" class="px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition">
+                                    批量复制卡密
                                 </button>
                                 <button onclick="batchMarkUsed()" class="px-4 py-2 bg-teal-500 text-white text-sm rounded-lg hover:bg-teal-600 transition">
                                     批量标记已使用
@@ -879,6 +890,7 @@
             const status = document.getElementById('statusFilter')?.value || '';
             const refundFilter = document.getElementById('refundFilter')?.value || '';
             const usedFilter = document.getElementById('usedFilter')?.value || '';
+            const limitFilter = document.getElementById('limitFilter')?.value || '';
 
             try {
                 let url = '/api/cards/?';
@@ -892,6 +904,14 @@
                 // 如果已经选择了状态筛选，就完全信任后端的筛选结果
                 if (!status) {
                     cards = cards.filter(card => card.status !== 'deleted');
+                }
+
+                // 应用额度筛选
+                if (limitFilter) {
+                    const limitValue = parseFloat(limitFilter);
+                    if (!isNaN(limitValue)) {
+                        cards = cards.filter(card => parseFloat(card.card_limit) === limitValue);
+                    }
                 }
 
                 // 应用退款状态筛选
@@ -960,7 +980,8 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                 <button onclick="viewCardDetail('${card.card_id}')" class="text-blue-600 hover:text-blue-900">详情</button>
-                                <button onclick="copyCardInfo('${card.card_id}')" class="text-indigo-600 hover:text-indigo-900" title="复制卡片信息">复制</button>
+                                <button onclick="copySingleCardId('${card.card_id}')" class="text-orange-600 hover:text-orange-900" title="复制卡密">卡密</button>
+                                <button onclick="copyCardInfo('${card.card_id}')" class="text-indigo-600 hover:text-indigo-900" title="复制卡片完整信息">卡号</button>
                                 <button onclick="activateCardFromList('${card.card_id}')" class="text-green-600 hover:text-green-900">激活</button>
                                 <button onclick="toggleUsed('${card.card_id}', ${card.is_used})" class="text-teal-600 hover:text-teal-900">
                                     ${card.is_used ? '取消使用' : '标记使用'}
@@ -1587,6 +1608,22 @@
             return `${firstName} ${lastName}`;
         }
 
+        // 复制单个卡密
+        async function copySingleCardId(cardId) {
+            try {
+                // 复制卡密到剪贴板
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(cardId);
+                    showToast('卡密已复制到剪贴板', 'success');
+                } else {
+                    fallbackCopyToClipboard(cardId);
+                    showToast('卡密已复制到剪贴板', 'success');
+                }
+            } catch (error) {
+                showToast('复制失败: ' + error.message, 'error');
+            }
+        }
+
         // 复制单张卡片的格式化信息
         async function copyCardInfo(cardId) {
             try {
@@ -2156,6 +2193,31 @@
                 showToast('复制失败: ' + error.message, 'error');
             }
         }
+
+        // 批量复制卡密（只复制 card_id）
+        async function batchCopyCardIds() {
+            const selectedIds = getSelectedCardIds();
+
+            if (selectedIds.length === 0) {
+                showToast('请先选择卡片', 'info');
+                return;
+            }
+
+            try {
+                // 将所有卡密复制到剪贴板，每行一个
+                const text = selectedIds.join('\n');
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                    showToast(`已复制 ${selectedIds.length} 个卡密到剪贴板`, 'success');
+                } else {
+                    fallbackCopyToClipboard(text);
+                    showToast(`已复制 ${selectedIds.length} 个卡密到剪贴板`, 'success');
+                }
+            } catch (error) {
+                showToast('复制失败: ' + error.message, 'error');
+            }
+        }
+
 
         // 页面加载时初始化
         document.addEventListener('DOMContentLoaded', function() {

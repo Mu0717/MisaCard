@@ -588,3 +588,61 @@ async def get_card_transaction_history(
         "message": "查询成功",
         "data": card_info
     }
+
+
+@router.get("/query/by-limit", response_model=schemas.APIResponse)
+async def query_cards_by_limit(
+    limit: float = Query(..., description="卡片额度"),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    根据额度查询卡密信息（需要鉴权）
+    返回所有匹配该额度的卡片信息
+    """
+    # 先更新所有过期卡片的状态
+    crud.update_expired_cards(db)
+    
+    # 查询指定额度的卡片（排除已删除的）
+    cards = db.query(models.Card).filter(
+        models.Card.card_limit == limit,
+        models.Card.status != 'deleted'
+    ).all()
+    
+    if not cards:
+        return {
+            "success": False,
+            "message": f"未找到额度为 ${limit} 的卡片",
+            "data": {
+                "count": 0,
+                "cards": []
+            }
+        }
+    
+    # 构建返回数据
+    card_list = []
+    for card in cards:
+        card_list.append({
+            "card_id": card.card_id,
+            "card_nickname": card.card_nickname,
+            "card_limit": card.card_limit,
+            "card_number": card.card_number,
+            "card_cvc": card.card_cvc,
+            "card_exp_date": card.card_exp_date,
+            "status": card.status,
+            "is_activated": card.is_activated,
+            "is_used": card.is_used,
+            "refund_requested": card.refund_requested,
+            "create_time": card.create_time.isoformat() if card.create_time else None,
+            "exp_date": card.exp_date.isoformat() if card.exp_date else None
+        })
+    
+    return {
+        "success": True,
+        "message": f"找到 {len(cards)} 张额度为 ${limit} 的卡片",
+        "data": {
+            "count": len(cards),
+            "limit": limit,
+            "cards": card_list
+        }
+    }
