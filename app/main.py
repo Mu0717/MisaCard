@@ -11,9 +11,11 @@ import os
 from .database import engine
 from . import models
 from .api import cards, imports, auth
+import logging
 
-# 创建数据库表
-models.Base.metadata.create_all(bind=engine)
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 创建 FastAPI 应用
 app = FastAPI(
@@ -21,6 +23,18 @@ app = FastAPI(
     description="卡片管理系统 - 支持卡片查询、激活、批量导入",
     version="2.0.0"
 )
+
+
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时初始化数据库"""
+    try:
+        logger.info("正在初始化数据库...")
+        models.Base.metadata.create_all(bind=engine)
+        logger.info("✅ 数据库初始化成功")
+    except Exception as e:
+        logger.error(f"❌ 数据库初始化失败: {e}")
+        raise
 
 # CORS 配置
 app.add_middleware(
