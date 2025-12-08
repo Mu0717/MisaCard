@@ -55,9 +55,57 @@
             pointer-events: none;
             display: none !important;
         }
+        /* Loading 样式 */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .loading-spinner {
+            background: white;
+            border-radius: 12px;
+            padding: 24px 32px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-gray-50">
+    <!-- 全局 Loading -->
+    <div id="globalLoading" class="loading-overlay">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p class="text-gray-700 font-medium text-lg">加载中...</p>
+        </div>
+    </div>
     <!-- 登录页面 -->
     <div id="loginPage" class="login-container">
         <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md">
@@ -610,6 +658,29 @@
     </div>
 
     <script>
+        // ==================== Loading 控制 ====================
+        
+        let loadingCount = 0; // 用于跟踪并发请求数量
+        
+        function showLoading() {
+            loadingCount++;
+            const loadingEl = document.getElementById('globalLoading');
+            if (loadingEl) {
+                loadingEl.classList.add('active');
+            }
+        }
+        
+        function hideLoading() {
+            loadingCount--;
+            if (loadingCount <= 0) {
+                loadingCount = 0;
+                const loadingEl = document.getElementById('globalLoading');
+                if (loadingEl) {
+                    loadingEl.classList.remove('active');
+                }
+            }
+        }
+        
         // ==================== 登录鉴权相关 ====================
         
         // 访客模式标志
@@ -650,6 +721,7 @@
             const password = document.getElementById('loginPassword').value;
             const errorDiv = document.getElementById('loginError');
             
+            showLoading();
             try {
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
@@ -682,6 +754,8 @@
             } catch (error) {
                 errorDiv.textContent = '登录失败: ' + error.message;
                 errorDiv.classList.remove('hidden');
+            } finally {
+                hideLoading();
             }
         }
 
@@ -793,23 +867,28 @@
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             };
             
-            const response = await fetch(url, options);
-            
-            // 如果返回401，说明token过期或无效
-            if (response.status === 401) {
-                // 只对需要鉴权的接口才跳转登录页
-                // 查询和激活接口不需要鉴权，所以不应该跳转
-                const needsAuth = !url.includes('/activate') && !url.includes('/query');
-                if (needsAuth) {
-                    showToast('登录已过期，请重新登录', 'error');
-                    setTimeout(() => {
-                        AuthManager.clearToken();
-                        location.reload();
-                    }, 1500);
+            showLoading();
+            try {
+                const response = await fetch(url, options);
+                
+                // 如果返回401，说明token过期或无效
+                if (response.status === 401) {
+                    // 只对需要鉴权的接口才跳转登录页
+                    // 查询和激活接口不需要鉴权，所以不应该跳转
+                    const needsAuth = !url.includes('/activate') && !url.includes('/query');
+                    if (needsAuth) {
+                        showToast('登录已过期，请重新登录', 'error');
+                        setTimeout(() => {
+                            AuthManager.clearToken();
+                            location.reload();
+                        }, 1500);
+                    }
                 }
+                
+                return response;
+            } finally {
+                hideLoading();
             }
-            
-            return response;
         }
 
         // 初始化应用
@@ -1074,6 +1153,7 @@
                 return;
             }
 
+            showLoading();
             try {
                 const response = await fetch(`/api/cards/${cardId}/activate`, { method: 'POST' });
                 const data = await response.json();
@@ -1086,6 +1166,8 @@
                 }
             } catch (error) {
                 displayQueryError('网络错误: ' + error.message);
+            } finally {
+                hideLoading();
             }
         }
 
@@ -1393,6 +1475,7 @@
         // 从列表激活卡片
         async function activateCardFromList(cardId) {
             if (!confirm('确定要激活这张卡片吗？')) return;
+            showLoading();
             try {
                 const response = await fetch(`/api/cards/${cardId}/activate`, { method: 'POST' });
                 const data = await response.json();
@@ -1407,6 +1490,8 @@
                 }
             } catch (error) {
                 showToast('激活失败: ' + error.message, 'error');
+            } finally {
+                hideLoading();
             }
         }
 
@@ -1981,6 +2066,7 @@
 
         // 处理批量激活（并发模式）
         async function processBatchActivate(cardIds, concurrency, maxRetries) {
+            showLoading();
             try {
                 addActivateLog(`🚀 开始并发激活 ${cardIds.length} 张卡片 (并发数: ${concurrency})`, 'text-blue-600 font-semibold');
                 
@@ -2047,6 +2133,8 @@
                 showToast(`批量激活失败: ${error.message}`, 'error');
                 batchActivateState.isRunning = false;
                 document.getElementById('closeActivateBtn').textContent = '关闭';
+            } finally {
+                hideLoading();
             }
         }
 
