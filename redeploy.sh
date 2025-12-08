@@ -15,6 +15,7 @@ docker run -d \
   --name misacard-manager \
   -p 8000:8000 \
   -v $(pwd)/data:/app/data \
+  -e DATABASE_URL=sqlite:///./data/cards.db \
   -e TZ=Asia/Shanghai \
   --restart unless-stopped \
   misacard-manager:latest
