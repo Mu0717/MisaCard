@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# 环境变量
+.env
+.env.local
+
+# 数据库（根据需要决定是否排除）
+# cards.db
+
+# 文档
+*.md
+!README.md
+
+# 测试
+tests/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# 日志
+*.log
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# 其他
+.editorconfig
+*.png
+*.jpg
+*.jpeg
+static/
+

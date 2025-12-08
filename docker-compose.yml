@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  misacard-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: misacard-manager
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # 持久化数据库文件
+      - ./data:/app/data
+      # 如果需要自定义配置，取消下面注释
+      # - ./.env:/app/.env
+    environment:
+      # 基础配置
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG=false
+      # 数据库配置（使用容器内路径）
+      - DATABASE_URL=sqlite:///./data/cards.db
+      # 时区设置
+      - TZ=Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - misacard-network
+
+networks:
+  misacard-network:
+    driver: bridge
+
+volumes:
+  misacard-data:
+
