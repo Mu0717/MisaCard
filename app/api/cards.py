@@ -121,19 +121,21 @@ async def batch_activate_cards(
             print(f"[批量激活] 正在处理: {card_id}{retry_text}")
             
             try:
-                # 检查卡片是否存在，不存在则自动创建
+                # 检查卡片是否存在
                 db_card = crud.get_card_by_id(db, card_id)
                 if not db_card:
-                    print(f"[批量激活] 卡片不存在于本地数据库，自动创建: {card_id}")
-                    # 创建新卡片（先以默认值创建，激活后会更新）
-                    card_create = schemas.CardCreate(
-                        card_id=card_id,
-                        card_nickname=None,
-                        card_limit=0.0,
-                        validity_hours=None
-                    )
-                    db_card = crud.create_card(db, card_create)
-                    print(f"[批量激活] ✓ 已自动创建卡片记录")
+                    error_msg = "卡密不存在"
+                    crud.create_activation_log(db, card_id, "failed", error_message=error_msg)
+                    result = {
+                        "card_id": card_id,
+                        "success": False,
+                        "message": error_msg,
+                        "retry_count": retry_count
+                    }
+                    results["failed"].append(result)
+                    results["failed_count"] += 1
+                    print(f"[批量激活] ✗ 失败: {card_id} - {error_msg}")
+                    return result
                 
                 # 自动激活流程
                 success, card_data, message = await auto_activate_if_needed(card_id)
@@ -289,19 +291,10 @@ async def activate_card(
     2. 更新本地数据库
     3. 记录激活日志
     """
-    # 检查卡片是否存在，不存在则自动创建
+    # 检查卡片是否存在
     db_card = crud.get_card_by_id(db, card_id)
     if not db_card:
-        print(f"[激活卡片] 卡片不存在于本地数据库，自动创建: {card_id}")
-        # 创建新卡片（先以默认值创建，激活后会更新）
-        card_create = schemas.CardCreate(
-            card_id=card_id,
-            card_nickname=None,
-            card_limit=0.0,
-            validity_hours=None
-        )
-        db_card = crud.create_card(db, card_create)
-        print(f"[激活卡片] ✓ 已自动创建卡片记录")
+        raise HTTPException(status_code=404, detail="卡密不存在")
 
     # 自动激活流程
     success, card_data, message = await auto_activate_if_needed(card_id)

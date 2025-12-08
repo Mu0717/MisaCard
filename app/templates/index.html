@@ -1081,7 +1081,8 @@
                 if (response.ok && data.success) {
                     displayQueryResult(data.card_data);
                 } else {
-                    displayQueryError(data.message || '查询失败');
+                    // FastAPI的HTTPException使用detail字段返回错误信息
+                    displayQueryError(data.detail || data.message || '查询失败');
                 }
             } catch (error) {
                 displayQueryError('网络错误: ' + error.message);
@@ -1401,7 +1402,8 @@
                     loadCards();
                     if (currentPage === 'dashboard') loadDashboard();
                 } else {
-                    showToast(data.message || '激活失败', 'error');
+                    // FastAPI的HTTPException使用detail字段返回错误信息
+                    showToast(data.detail || data.message || '激活失败', 'error');
                 }
             } catch (error) {
                 showToast('激活失败: ' + error.message, 'error');
@@ -2076,7 +2078,8 @@
                         batchActivateState.failedCount++;
                     }
                     batchActivateState.retryQueue.push(cardId);
-                    addActivateLog(`❌ 失败: ${cardId} - ${data.message || '未知错误'} (将自动重试)`, 'text-red-600');
+                    // FastAPI的HTTPException使用detail字段返回错误信息
+                    addActivateLog(`❌ 失败: ${cardId} - ${data.detail || data.message || '未知错误'} (将自动重试)`, 'text-red-600');
                 }
             } catch (error) {
                 // 网络错误，加入重试队列
