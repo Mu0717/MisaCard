@@ -1805,7 +1805,7 @@
                 const startIndex = (paginationState.currentPage - 1) * paginationState.pageSize;
                 const endIndex = startIndex + paginationState.pageSize;
                 const pageCards = paginationState.allCards.slice(startIndex, endIndex);
-                
+
                 // 筛选已激活且未使用的卡片
                 const targetCards = pageCards.filter(card => 
                     card.is_activated === true && 

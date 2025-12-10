@@ -33,6 +33,9 @@ COPY . .
 # 创建数据目录（用于持久化数据库）
 RUN mkdir -p /app/data
 
+# 给启动脚本执行权限
+RUN chmod +x docker-entrypoint.sh
+
 # 注意：数据库将在应用首次启动时自动初始化
 # 不在镜像构建时初始化，避免数据库文件路径不匹配导致数据丢失
 
@@ -43,6 +46,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')" || exit 1
 
-# 启动应用
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 使用启动脚本（自动处理数据库迁移）
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
