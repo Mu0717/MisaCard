@@ -519,6 +519,41 @@ async def toggle_used_status(
     }
 
 
+@router.post("/{card_id}/mark-sold", response_model=schemas.APIResponse)
+async def toggle_sold_status(
+    card_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    切换卡片的售卖状态（标记/取消标记已售卖）（需要鉴权）
+    """
+    from datetime import datetime, timezone
+
+    db_card = crud.get_card_by_id(db, card_id)
+    if not db_card:
+        raise HTTPException(status_code=404, detail="卡片不存在")
+
+    # 切换售卖状态
+    db_card.is_sold = not db_card.is_sold
+
+    if db_card.is_sold:
+        db_card.sold_time = datetime.now(timezone.utc)
+        message = "已标记为已售卖"
+    else:
+        db_card.sold_time = None
+        message = "已取消售卖标记"
+
+    db.commit()
+    db.refresh(db_card)
+
+    return {
+        "success": True,
+        "message": message,
+        "data": {"is_sold": db_card.is_sold}
+    }
+
+
 @router.get("/batch/unreturned-card-numbers", response_model=schemas.APIResponse)
 async def get_unreturned_card_numbers(
     db: Session = Depends(get_db),

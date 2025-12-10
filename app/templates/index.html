@@ -307,7 +307,7 @@
                 </div>
 
                 <!-- 补充统计信息 -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
                     <div class="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
                         <div class="flex items-center justify-between">
                             <div>
@@ -327,6 +327,17 @@
                             </div>
                             <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4 border-l-4 border-pink-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-600 text-sm font-medium">已售卖</p>
+                                <p class="text-2xl font-bold text-pink-600 mt-1" id="stat-sold">0</p>
+                            </div>
+                            <svg class="w-6 h-6 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                             </svg>
                         </div>
                     </div>
@@ -444,6 +455,11 @@
                             <option value="used">已使用</option>
                             <option value="not_used">未使用</option>
                         </select>
+                        <select id="soldFilter" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">全部售卖状态</option>
+                            <option value="sold">已售卖</option>
+                            <option value="not_sold">未售卖</option>
+                        </select>
                         <button onclick="loadCards()" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition flex-shrink-0">
                             搜索
                         </button>
@@ -454,6 +470,12 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             一键选中已激活未使用
+                        </button>
+                        <button onclick="selectActivatedUnsoldCards()" class="bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition text-sm">
+                            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            一键选中已激活未售卖
                         </button>
                     </div>
                     <!-- 批量操作栏 -->
@@ -475,6 +497,9 @@
                                 </button>
                                 <button onclick="batchToggleRefund()" class="px-4 py-2 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 transition">
                                     批量标记退款
+                                </button>
+                                <button onclick="batchMarkSold()" class="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 transition">
+                                    批量标记售卖
                                 </button>
                                 <button onclick="batchDelete()" class="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition">
                                     批量删除
@@ -503,6 +528,7 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">使用</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">退款</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">售卖</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
                                 </tr>
                             </thead>
@@ -942,6 +968,7 @@
                 const inactive = cards.filter(c => !c.is_activated && c.status !== 'expired').length;
                 const expired = cards.filter(c => c.status === 'expired').length;
                 const deleted = deletedCards.length;
+                const sold = cards.filter(c => c.is_sold === true).length;
                 const totalLimit = cards.reduce((sum, c) => sum + (c.card_limit || 0), 0);
 
                 // 计算激活率
@@ -956,6 +983,7 @@
                 document.getElementById('stat-limit').textContent = '$' + totalLimit.toFixed(2);
                 document.getElementById('stat-expired').textContent = expired;
                 document.getElementById('stat-deleted').textContent = deleted;
+                document.getElementById('stat-sold').textContent = sold;
                 document.getElementById('stat-rate').textContent = activationRate + '%';
                 document.getElementById('stat-avg').textContent = '$' + avgLimit;
             } catch (error) {
@@ -1008,6 +1036,14 @@
                     cards = cards.filter(card => !card.is_used);
                 }
 
+                // 应用售卖状态筛选
+                const soldFilter = document.getElementById('soldFilter')?.value || '';
+                if (soldFilter === 'sold') {
+                    cards = cards.filter(card => card.is_sold === true);
+                } else if (soldFilter === 'not_sold') {
+                    cards = cards.filter(card => !card.is_sold);
+                }
+
                 const tbody = document.getElementById('cardsTableBody');
                 const emptyState = document.getElementById('emptyState');
 
@@ -1057,6 +1093,11 @@
                                     ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">已申请</span>'
                                     : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">未申请</span>'}
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                ${card.is_sold
+                                    ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">已售卖</span>'
+                                    : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">未售卖</span>'}
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                 <button onclick="viewCardDetail('${card.card_id}')" class="text-blue-600 hover:text-blue-900">详情</button>
                                 <button onclick="copySingleCardId('${card.card_id}')" class="text-orange-600 hover:text-orange-900" title="复制卡密">卡密</button>
@@ -1067,6 +1108,9 @@
                                 </button>
                                 <button onclick="toggleRefund('${card.card_id}', ${card.refund_requested})" class="text-purple-600 hover:text-purple-900">
                                     ${card.refund_requested ? '取消退款' : '标记退款'}
+                                </button>
+                                <button onclick="toggleSold('${card.card_id}', ${card.is_sold})" class="text-orange-600 hover:text-orange-900">
+                                    ${card.is_sold ? '取消售卖' : '标记售卖'}
                                 </button>
                                 <button onclick="deleteCard('${card.card_id}')" class="text-red-600 hover:text-red-900">删除</button>
                             </td>
@@ -1374,6 +1418,20 @@
                                     <p class="font-semibold text-gray-900">${formatDate(card.refund_requested_time)}</p>
                                 </div>
                                 ` : ''}
+                                <div class="border-b pb-4">
+                                    <p class="text-sm text-gray-500">售卖状态</p>
+                                    <p>
+                                        ${card.is_sold
+                                            ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">已售卖</span>'
+                                            : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">未售卖</span>'}
+                                    </p>
+                                </div>
+                                ${card.sold_time ? `
+                                <div class="border-b pb-4">
+                                    <p class="text-sm text-gray-500">售卖时间</p>
+                                    <p class="font-semibold text-gray-900">${formatDate(card.sold_time)}</p>
+                                </div>
+                                ` : ''}
                             </div>
                             <div class="mt-6 flex gap-3">
                                 <button onclick="toggleUsed('${card.card_id}', ${card.is_used}); setTimeout(() => viewCardDetail('${card.card_id}'), 500)" class="flex-1 px-4 py-2 ${card.is_used ? 'bg-gray-500 hover:bg-gray-600' : 'bg-teal-500 hover:bg-teal-600'} text-white rounded-lg transition">
@@ -1381,6 +1439,9 @@
                                 </button>
                                 <button onclick="toggleRefund('${card.card_id}', ${card.refund_requested}); setTimeout(() => viewCardDetail('${card.card_id}'), 500)" class="flex-1 px-4 py-2 ${card.refund_requested ? 'bg-gray-500 hover:bg-gray-600' : 'bg-purple-500 hover:bg-purple-600'} text-white rounded-lg transition">
                                     ${card.refund_requested ? '取消退款标记' : '标记为已申请退款'}
+                                </button>
+                                <button onclick="toggleSold('${card.card_id}', ${card.is_sold}); setTimeout(() => viewCardDetail('${card.card_id}'), 500)" class="flex-1 px-4 py-2 ${card.is_sold ? 'bg-gray-500 hover:bg-gray-600' : 'bg-orange-500 hover:bg-orange-600'} text-white rounded-lg transition">
+                                    ${card.is_sold ? '取消售卖标记' : '标记为已售卖'}
                                 </button>
                             </div>
                         </div>
@@ -1552,6 +1613,23 @@
             }
         }
 
+        // 切换售卖标记
+        async function toggleSold(cardId, currentStatus) {
+            try {
+                const response = await fetchWithAuth(`/api/cards/${cardId}/mark-sold`, { method: 'POST' });
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showToast(data.message, 'success');
+                    loadCards();
+                } else {
+                    showToast(data.message || '操作失败', 'error');
+                }
+            } catch (error) {
+                showToast('操作失败: ' + error.message, 'error');
+            }
+        }
+
         // 一键选中已激活未使用的卡片
         async function selectActivatedUnusedCards() {
             try {
@@ -1592,6 +1670,46 @@
             }
         }
 
+        // 一键选中已激活未售卖的卡片
+        async function selectActivatedUnsoldCards() {
+            try {
+                const response = await fetchWithAuth('/api/cards/?limit=1000');
+                const allCards = await response.json();
+
+                // 筛选已激活且未售卖的卡片
+                const targetCards = allCards.filter(card => 
+                    card.is_activated === true && 
+                    card.is_sold === false &&
+                    card.status !== 'deleted' &&
+                    card.status !== 'expired'
+                );
+
+                if (targetCards.length === 0) {
+                    showToast('没有符合条件的卡片（已激活且未售卖）', 'info');
+                    return;
+                }
+
+                // 先清除所有选择
+                const checkboxes = document.querySelectorAll('.card-checkbox');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+
+                // 选中目标卡片
+                const targetCardIds = targetCards.map(card => card.card_id);
+                checkboxes.forEach(checkbox => {
+                    if (targetCardIds.includes(checkbox.value)) {
+                        checkbox.checked = true;
+                    }
+                });
+
+                updateSelection();
+                showToast(`已选中 ${targetCards.length} 张已激活未售卖的卡片`, 'success');
+            } catch (error) {
+                showToast('操作失败: ' + error.message, 'error');
+            }
+        }
+
         // 批量标记为已使用
         async function batchMarkUsed() {
             const selectedIds = getSelectedCardIds();
@@ -1609,6 +1727,38 @@
             for (const cardId of selectedIds) {
                 try {
                     const response = await fetchWithAuth(`/api/cards/${cardId}/mark-used`, { method: 'POST' });
+                    if (response.ok) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch (error) {
+                    failCount++;
+                }
+            }
+
+            showToast(`成功标记 ${successCount} 张，失败 ${failCount} 张`, successCount > 0 ? 'success' : 'error');
+            clearSelection();
+            loadCards();
+        }
+
+        // 批量标记为已售卖
+        async function batchMarkSold() {
+            const selectedIds = getSelectedCardIds();
+
+            if (selectedIds.length === 0) {
+                showToast('请先选择卡片', 'info');
+                return;
+            }
+
+            if (!confirm(`确定要批量标记 ${selectedIds.length} 张卡片为已售卖吗？`)) return;
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const cardId of selectedIds) {
+                try {
+                    const response = await fetchWithAuth(`/api/cards/${cardId}/mark-sold`, { method: 'POST' });
                     if (response.ok) {
                         successCount++;
                     } else {

@@ -47,6 +47,10 @@ class Card(Base):
     is_used = Column(Boolean, default=False)
     # 标记已使用时间
     used_time = Column(DateTime(timezone=True), nullable=True)
+    # 是否已售卖
+    is_sold = Column(Boolean, default=False)
+    # 标记已售卖时间
+    sold_time = Column(DateTime(timezone=True), nullable=True)
 
 
 class ActivationLog(Base):

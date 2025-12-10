@@ -44,6 +44,8 @@ class CardResponse(CardBase):
     refund_requested_time: Optional[datetime] = None
     is_used: bool = False
     used_time: Optional[datetime] = None
+    is_sold: bool = False
+    sold_time: Optional[datetime] = None
 
     class Config:
         from_attributes = True
