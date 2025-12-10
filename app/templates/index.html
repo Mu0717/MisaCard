@@ -543,6 +543,54 @@
                         </svg>
                         <p class="mt-4 text-gray-500">暂无卡片数据</p>
                     </div>
+                    
+                    <!-- 分页控件 -->
+                    <div id="pagination" class="hidden px-6 py-4 border-t border-gray-200 bg-gray-50">
+                        <div class="flex items-center justify-between">
+                            <!-- 左侧：每页数量选择 + 信息 -->
+                            <div class="flex items-center gap-4">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-sm text-gray-600">每页显示:</label>
+                                    <select id="pageSize" onchange="changePageSize()" class="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="20">20条</option>
+                                        <option value="50" selected>50条</option>
+                                        <option value="100">100条</option>
+                                        <option value="200">200条</option>
+                                    </select>
+                                </div>
+                                <div class="text-sm text-gray-600">
+                                    显示第 <span class="font-semibold text-gray-800" id="pageStart">1</span> 
+                                    到 <span class="font-semibold text-gray-800" id="pageEnd">50</span> 条，
+                                    共 <span class="font-semibold text-gray-800" id="totalRecords">0</span> 条记录
+                                </div>
+                            </div>
+                            
+                            <!-- 右侧：分页按钮 -->
+                            <div class="flex items-center gap-2">
+                                <button onclick="goToFirstPage()" id="firstPageBtn" class="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                                    </svg>
+                                </button>
+                                <button onclick="goToPrevPage()" id="prevPageBtn" class="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                    上一页
+                                </button>
+                                <div class="flex items-center gap-1">
+                                    <span class="text-sm text-gray-600">第</span>
+                                    <input type="number" id="currentPageInput" min="1" value="1" onchange="goToPage(this.value)" class="w-16 px-2 py-1 border border-gray-300 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <span class="text-sm text-gray-600">/ <span id="totalPages">1</span> 页</span>
+                                </div>
+                                <button onclick="goToNextPage()" id="nextPageBtn" class="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    下一页
+                                </button>
+                                <button onclick="goToLastPage()" id="lastPageBtn" class="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -925,6 +973,16 @@
         // ==================== 页面功能代码 ====================
         
         let currentPage = 'dashboard';
+        
+        // ==================== 分页状态管理 ====================
+        
+        let paginationState = {
+            currentPage: 1,        // 当前页码
+            pageSize: 50,          // 每页显示数量
+            totalRecords: 0,       // 总记录数
+            totalPages: 1,         // 总页数
+            allCards: []           // 所有卡片数据（用于前端筛选）
+        };
 
         // 页面切换
         function showPage(page) {
@@ -956,7 +1014,7 @@
         // 加载概览数据
         async function loadDashboard() {
             try {
-                const response = await fetchWithAuth('/api/cards/');
+                const response = await fetchWithAuth('/api/cards/?limit=10000');
                 let allCards = await response.json();
 
                 // 分离有效卡片和已删除卡片
@@ -991,16 +1049,23 @@
             }
         }
 
-        // 加载卡片列表
-        async function loadCards() {
+        // 加载卡片列表（支持分页）
+        async function loadCards(resetPage = true) {
             const search = document.getElementById('searchInput')?.value || '';
             const status = document.getElementById('statusFilter')?.value || '';
             const refundFilter = document.getElementById('refundFilter')?.value || '';
             const usedFilter = document.getElementById('usedFilter')?.value || '';
             const limitFilter = document.getElementById('limitFilter')?.value || '';
+            const soldFilter = document.getElementById('soldFilter')?.value || '';
+
+            // 重置到第一页（筛选条件改变时）
+            if (resetPage) {
+                paginationState.currentPage = 1;
+            }
 
             try {
-                let url = '/api/cards/?';
+                // 加载所有数据（用于前端筛选和分页）
+                let url = '/api/cards/?limit=10000&';
                 if (search) url += 'search=' + encodeURIComponent(search) + '&';
                 if (status) url += 'status=' + encodeURIComponent(status);
 
@@ -1008,7 +1073,6 @@
                 let cards = await response.json();
 
                 // 如果没有选择状态筛选，默认过滤掉已删除的卡片
-                // 如果已经选择了状态筛选，就完全信任后端的筛选结果
                 if (!status) {
                     cards = cards.filter(card => card.status !== 'deleted');
                 }
@@ -1025,7 +1089,6 @@
                 if (refundFilter === 'requested') {
                     cards = cards.filter(card => card.refund_requested === true);
                 } else if (refundFilter === 'not_requested') {
-                    // 未申请退款：包括 false、null、undefined
                     cards = cards.filter(card => !card.refund_requested);
                 }
 
@@ -1037,22 +1100,36 @@
                 }
 
                 // 应用售卖状态筛选
-                const soldFilter = document.getElementById('soldFilter')?.value || '';
                 if (soldFilter === 'sold') {
                     cards = cards.filter(card => card.is_sold === true);
                 } else if (soldFilter === 'not_sold') {
                     cards = cards.filter(card => !card.is_sold);
                 }
 
+                // 保存所有卡片数据
+                paginationState.allCards = cards;
+                paginationState.totalRecords = cards.length;
+                paginationState.totalPages = Math.ceil(cards.length / paginationState.pageSize);
+
+                // 计算当前页的数据范围
+                const startIndex = (paginationState.currentPage - 1) * paginationState.pageSize;
+                const endIndex = startIndex + paginationState.pageSize;
+                const pageCards = cards.slice(startIndex, endIndex);
+
+                // 渲染表格
                 const tbody = document.getElementById('cardsTableBody');
                 const emptyState = document.getElementById('emptyState');
+                const pagination = document.getElementById('pagination');
 
                 if (cards.length === 0) {
                     tbody.innerHTML = '';
                     emptyState.classList.remove('hidden');
+                    pagination.classList.add('hidden');
                 } else {
                     emptyState.classList.add('hidden');
-                    tbody.innerHTML = cards.map(card => {
+                    pagination.classList.remove('hidden');
+                    
+                    tbody.innerHTML = pageCards.map(card => {
                         // 检查卡片是否过期
                         const actualStatus = checkCardExpiration(card);
                         const expireInfo = getExpireInfo(card);
@@ -1116,10 +1193,101 @@
                             </td>
                         </tr>
                     `}).join('');
+                    
+                    // 更新分页UI
+                    updatePaginationUI();
                 }
             } catch (error) {
                 alert('加载卡片列表失败: ' + error.message);
             }
+        }
+        
+        // 更新分页UI
+        function updatePaginationUI() {
+            const { currentPage, pageSize, totalRecords, totalPages } = paginationState;
+            
+            // 计算显示范围
+            const start = totalRecords === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+            const end = Math.min(currentPage * pageSize, totalRecords);
+            
+            // 更新显示信息
+            document.getElementById('pageStart').textContent = start;
+            document.getElementById('pageEnd').textContent = end;
+            document.getElementById('totalRecords').textContent = totalRecords;
+            document.getElementById('currentPageInput').value = currentPage;
+            document.getElementById('currentPageInput').max = totalPages;
+            document.getElementById('totalPages').textContent = totalPages;
+            
+            // 更新按钮状态
+            const firstPageBtn = document.getElementById('firstPageBtn');
+            const prevPageBtn = document.getElementById('prevPageBtn');
+            const nextPageBtn = document.getElementById('nextPageBtn');
+            const lastPageBtn = document.getElementById('lastPageBtn');
+            
+            // 第一页和上一页按钮
+            if (currentPage <= 1) {
+                firstPageBtn.disabled = true;
+                prevPageBtn.disabled = true;
+            } else {
+                firstPageBtn.disabled = false;
+                prevPageBtn.disabled = false;
+            }
+            
+            // 最后一页和下一页按钮
+            if (currentPage >= totalPages) {
+                nextPageBtn.disabled = true;
+                lastPageBtn.disabled = true;
+            } else {
+                nextPageBtn.disabled = false;
+                lastPageBtn.disabled = false;
+            }
+        }
+        
+        // 分页控制函数
+        function goToFirstPage() {
+            if (paginationState.currentPage > 1) {
+                paginationState.currentPage = 1;
+                loadCards(false);
+            }
+        }
+        
+        function goToPrevPage() {
+            if (paginationState.currentPage > 1) {
+                paginationState.currentPage--;
+                loadCards(false);
+            }
+        }
+        
+        function goToNextPage() {
+            if (paginationState.currentPage < paginationState.totalPages) {
+                paginationState.currentPage++;
+                loadCards(false);
+            }
+        }
+        
+        function goToLastPage() {
+            if (paginationState.currentPage < paginationState.totalPages) {
+                paginationState.currentPage = paginationState.totalPages;
+                loadCards(false);
+            }
+        }
+        
+        function goToPage(page) {
+            const pageNum = parseInt(page);
+            if (pageNum >= 1 && pageNum <= paginationState.totalPages) {
+                paginationState.currentPage = pageNum;
+                loadCards(false);
+            } else {
+                // 恢复当前页码
+                document.getElementById('currentPageInput').value = paginationState.currentPage;
+            }
+        }
+        
+        function changePageSize() {
+            const newSize = parseInt(document.getElementById('pageSize').value);
+            paginationState.pageSize = newSize;
+            paginationState.currentPage = 1; // 重置到第一页
+            loadCards(false);
         }
 
         // 检查卡片是否过期
@@ -1630,14 +1798,16 @@
             }
         }
 
-        // 一键选中已激活未使用的卡片
+        // 一键选中已激活未使用的卡片（仅当前页）
         async function selectActivatedUnusedCards() {
             try {
-                const response = await fetchWithAuth('/api/cards/?limit=1000');
-                const allCards = await response.json();
-
+                // 从当前显示的卡片中筛选
+                const startIndex = (paginationState.currentPage - 1) * paginationState.pageSize;
+                const endIndex = startIndex + paginationState.pageSize;
+                const pageCards = paginationState.allCards.slice(startIndex, endIndex);
+                
                 // 筛选已激活且未使用的卡片
-                const targetCards = allCards.filter(card => 
+                const targetCards = pageCards.filter(card => 
                     card.is_activated === true && 
                     card.is_used === false &&
                     card.status !== 'deleted' &&
@@ -1645,7 +1815,7 @@
                 );
 
                 if (targetCards.length === 0) {
-                    showToast('没有符合条件的卡片（已激活且未使用）', 'info');
+                    showToast('当前页没有符合条件的卡片（已激活且未使用）', 'info');
                     return;
                 }
 
@@ -1664,20 +1834,22 @@
                 });
 
                 updateSelection();
-                showToast(`已选中 ${targetCards.length} 张已激活未使用的卡片`, 'success');
+                showToast(`已选中当前页 ${targetCards.length} 张已激活未使用的卡片`, 'success');
             } catch (error) {
                 showToast('操作失败: ' + error.message, 'error');
             }
         }
 
-        // 一键选中已激活未售卖的卡片
+        // 一键选中已激活未售卖的卡片（仅当前页）
         async function selectActivatedUnsoldCards() {
             try {
-                const response = await fetchWithAuth('/api/cards/?limit=1000');
-                const allCards = await response.json();
-
+                // 从当前显示的卡片中筛选
+                const startIndex = (paginationState.currentPage - 1) * paginationState.pageSize;
+                const endIndex = startIndex + paginationState.pageSize;
+                const pageCards = paginationState.allCards.slice(startIndex, endIndex);
+                
                 // 筛选已激活且未售卖的卡片
-                const targetCards = allCards.filter(card => 
+                const targetCards = pageCards.filter(card => 
                     card.is_activated === true && 
                     card.is_sold === false &&
                     card.status !== 'deleted' &&
@@ -1685,7 +1857,7 @@
                 );
 
                 if (targetCards.length === 0) {
-                    showToast('没有符合条件的卡片（已激活且未售卖）', 'info');
+                    showToast('当前页没有符合条件的卡片（已激活且未售卖）', 'info');
                     return;
                 }
 
@@ -1704,7 +1876,7 @@
                 });
 
                 updateSelection();
-                showToast(`已选中 ${targetCards.length} 张已激活未售卖的卡片`, 'success');
+                showToast(`已选中当前页 ${targetCards.length} 张已激活未售卖的卡片`, 'success');
             } catch (error) {
                 showToast('操作失败: ' + error.message, 'error');
             }
@@ -1917,7 +2089,7 @@
                     }
 
                     // 获取所有卡片信息，找到对应的 card_id
-                    const cardsResponse = await fetchWithAuth('/api/cards/?limit=1000');
+                    const cardsResponse = await fetchWithAuth('/api/cards/?limit=10000');
                     const allCards = await cardsResponse.json();
 
                     // 筛选出需要标记的卡片（后端已保证都是已过期的）
