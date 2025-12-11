@@ -618,6 +618,57 @@ async def get_card_transaction_history(
     }
 
 
+@router.post("/{card_id}/transactions/query", response_model=schemas.APIResponse)
+async def query_card_transactions_by_card_id(
+    card_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    通过卡密查询交易记录（不需要鉴权，用于查询激活页面）
+    需要卡片已激活（有卡号）才能查询
+    """
+    # 检查卡片是否存在
+    db_card = crud.get_card_by_id(db, card_id)
+    if not db_card:
+        raise HTTPException(status_code=404, detail="卡片不存在")
+
+    # 检查卡片是否已激活
+    if not db_card.card_number:
+        raise HTTPException(status_code=400, detail="卡片未激活，无法查询消费记录")
+
+    # 从API查询消费记录
+    success, card_info, error = await get_card_transactions(str(db_card.card_number))
+
+    if not success:
+        raise HTTPException(status_code=400, detail=error or "查询消费记录失败")
+
+    return {
+        "success": True,
+        "message": "查询成功",
+        "data": card_info
+    }
+
+
+@router.post("/query-by-card-number/{card_number}", response_model=schemas.APIResponse)
+async def query_transactions_by_card_number(
+    card_number: str
+):
+    """
+    通过卡号查询交易记录（不需要鉴权，用于查询激活页面的卡号查询功能）
+    """
+    # 从API查询消费记录
+    success, card_info, error = await get_card_transactions(card_number)
+
+    if not success:
+        raise HTTPException(status_code=400, detail=error or "查询消费记录失败")
+
+    return {
+        "success": True,
+        "message": "查询成功",
+        "data": card_info
+    }
+
+
 @router.get("/query/by-limit", response_model=schemas.APIResponse)
 async def query_cards_by_limit(
     limit: float = Query(..., description="卡片额度"),
