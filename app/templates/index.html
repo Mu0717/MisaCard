@@ -1870,7 +1870,7 @@
                     cardInfo.transactions.forEach((tx, index) => {
                         html += `<div class="bg-gray-50 rounded p-3 text-sm">`;
                         html += `<div class="flex justify-between items-start mb-2">`;
-                        html += `<span class="font-semibold text-gray-800">#${index + 1} ${tx.merchant || tx.bank_description || '未知商户'}</span>`;
+                        html += `<span class="font-semibold text-gray-800">#${index + 1} ${tx.merchant || tx.bank_bank_description || '未知商户'}</span>`;
                         html += `<span class="font-bold ${tx.amount > 0 ? 'text-red-600' : 'text-green-600'}">$${Math.abs(tx.amount || 0).toFixed(2)}</span>`;
                         html += `</div>`;
                         html += `<div class="text-gray-600">`;
@@ -1945,7 +1945,7 @@
                     cardInfo.transactions.forEach((tx, index) => {
                         html += `<div class="bg-gray-50 rounded p-2 text-xs">`;
                         html += `<div class="flex justify-between items-start mb-1">`;
-                        html += `<span class="font-semibold text-gray-800">#${index + 1} ${tx.merchant || tx.description || '未知'}</span>`;
+                        html += `<span class="font-semibold text-gray-800">#${index + 1} ${tx.merchant || tx.bank_description || '未知'}</span>`;
                         html += `<span class="font-bold ${tx.amount > 0 ? 'text-red-600' : 'text-green-600'}">$${Math.abs(tx.amount || 0).toFixed(2)}</span>`;
                         html += `</div>`;
                         if (tx.date) html += `<div class="text-gray-600">时间: ${formatDate(tx.date)}</div>`;
@@ -2046,7 +2046,7 @@
                         html += `<div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition">`;
                         html += `<div class="flex justify-between items-start mb-2">`;
                         html += `<div class="flex-1">`;
-                        html += `<div class="font-bold text-gray-800 text-base">#${index + 1} ${tx.merchant || tx.description || '未知商户'}</div>`;
+                        html += `<div class="font-bold text-gray-800 text-base">#${index + 1} ${tx.merchant || tx.bank_description || '未知商户'}</div>`;
                         if (tx.category) html += `<div class="text-xs text-gray-500 mt-1">${tx.category}</div>`;
                         html += `</div>`;
                         html += `<div class="text-right ml-4">`;
@@ -2059,6 +2059,11 @@
                         if (tx.date) html += `<div><svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>${formatDate(tx.date)}</div>`;
                         if (tx.status) html += `<div><svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>${tx.status}</div>`;
                         html += `</div>`;
+                        if (tx.reason_for_failure) {
+                            html += `<div class="mt-2 pt-2 border-t border-gray-100">`;
+                            html += `<p class="text-xs text-red-600"><span class="font-semibold">失败原因：</span>${tx.reason_for_failure}</p>`;
+                            html += `</div>`;
+                        }
                         html += `</div>`;
                     });
 
@@ -2327,7 +2332,7 @@
                                     <div class="flex items-start justify-between mb-2">
                                         <div class="flex-1">
                                             <div class="flex items-center gap-2 mb-1">
-                                                <span class="font-semibold text-gray-900">${tx.bank_description || '-'}</span>
+                                                <span class="font-semibold text-gray-900">${tx.bank_bank_description || '-'}</span>
                                                 <span class="px-2 py-0.5 text-xs rounded ${tx.status === '失败' ? 'bg-red-100 text-red-800' : tx.status === '成功' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
                                                     ${tx.status || '-'}
                                                 </span>
