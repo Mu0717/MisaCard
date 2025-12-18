@@ -1870,7 +1870,7 @@
                     cardInfo.transactions.forEach((tx, index) => {
                         html += `<div class="bg-gray-50 rounded p-3 text-sm">`;
                         html += `<div class="flex justify-between items-start mb-2">`;
-                        html += `<span class="font-semibold text-gray-800">#${index + 1} ${tx.merchant || tx.bank_bank_description || '未知商户'}</span>`;
+                        html += `<span class="font-semibold text-gray-800">#${index + 1} ${tx.merchant || tx.bank_description || '未知商户'}</span>`;
                         html += `<span class="font-bold ${tx.amount > 0 ? 'text-red-600' : 'text-green-600'}">$${Math.abs(tx.amount || 0).toFixed(2)}</span>`;
                         html += `</div>`;
                         html += `<div class="text-gray-600">`;
@@ -2332,7 +2332,7 @@
                                     <div class="flex items-start justify-between mb-2">
                                         <div class="flex-1">
                                             <div class="flex items-center gap-2 mb-1">
-                                                <span class="font-semibold text-gray-900">${tx.bank_bank_description || '-'}</span>
+                                                <span class="font-semibold text-gray-900">${tx.bank_description || '-'}</span>
                                                 <span class="px-2 py-0.5 text-xs rounded ${tx.status === '失败' ? 'bg-red-100 text-red-800' : tx.status === '成功' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
                                                     ${tx.status || '-'}
                                                 </span>
