@@ -45,7 +45,24 @@ if [ -f "migrate_add_sold_field.py" ]; then
         echo "==> 将在容器启动后自动运行迁移"
     fi
 else
-    echo -e "${YELLOW}! 未找到迁移脚本${NC}"
+    echo -e "${YELLOW}! 未找到迁移脚本: migrate_add_sold_field.py${NC}"
+fi
+
+# 检查是否需要运行外部卡字段迁移
+if [ -f "migrate_add_external_field.py" ]; then
+    echo "==> 找到迁移脚本: migrate_add_external_field.py"
+    
+    # 在容器外运行迁移（如果有Python环境）
+    if command -v python3 &> /dev/null; then
+        echo "==> 使用本地Python运行迁移"
+        python3 migrate_add_external_field.py
+        echo -e "${GREEN}✓ 外部卡字段迁移完成${NC}"
+    else
+        echo -e "${RED}! 本地没有Python环境${NC}"
+        echo "==> 将在容器内运行迁移"
+    fi
+else
+    echo -e "${YELLOW}! 未找到迁移脚本: migrate_add_external_field.py${NC}"
 fi
 
 echo ""
