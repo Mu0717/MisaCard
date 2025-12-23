@@ -106,7 +106,7 @@ def update_expired_cards(db: Session) -> int:
     return count
 
 
-def create_card(db: Session, card: schemas.CardCreate) -> models.Card:
+def create_card(db: Session, card: schemas.CardCreate, is_external: bool = False) -> models.Card:
     """创建新卡片"""
     # 注意：过期时间(exp_date)应该从API的delete_date字段获取，而不是自己计算
     # 导入时先设为None，等查询/激活后再从API更新
@@ -116,7 +116,8 @@ def create_card(db: Session, card: schemas.CardCreate) -> models.Card:
         card_limit=card.card_limit,
         validity_hours=card.validity_hours,
         exp_date=None,  # 不自己计算，等API返回
-        status="inactive"
+        status="inactive",
+        is_external=is_external
     )
     db.add(db_card)
     db.commit()

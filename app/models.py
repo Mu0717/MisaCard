@@ -51,6 +51,8 @@ class Card(Base):
     is_sold = Column(Boolean, default=False)
     # 标记已售卖时间
     sold_time = Column(DateTime(timezone=True), nullable=True)
+    # 是否为外部卡（第三方卡密），即激活时本地数据库不存在的卡
+    is_external = Column(Boolean, default=False)
 
 
 class ActivationLog(Base):

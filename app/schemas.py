@@ -46,6 +46,7 @@ class CardResponse(CardBase):
     used_time: Optional[datetime] = None
     is_sold: bool = False
     sold_time: Optional[datetime] = None
+    is_external: bool = False
 
     class Config:
         from_attributes = True
