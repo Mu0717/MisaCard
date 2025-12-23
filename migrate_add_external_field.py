@@ -7,7 +7,11 @@ import sqlite3
 import os
 
 # 数据库文件路径
-DB_PATH = os.path.join(os.path.dirname(__file__), "cards.db")
+# 数据库文件路径
+BASE_DIR = os.path.dirname(__file__)
+DB_PATH = os.path.join(BASE_DIR, "data", "cards.db")
+if not os.path.exists(DB_PATH):
+    DB_PATH = os.path.join(BASE_DIR, "cards.db")
 
 
 def migrate():
