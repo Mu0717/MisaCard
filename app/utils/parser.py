@@ -44,7 +44,8 @@ def parse_card_line(line: str) -> Optional[Dict]:
             }
 
     # 方式2: 尝试从文本中提取卡密（可能有"卡密:"前缀）
-    card_id_pattern = r'(?:卡密:\s*)?(mio-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
+    # 支持 mio-UUID 和纯 UUID 格式
+    card_id_pattern = r'(?:卡密:\s*)?((?:mio-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
     match = re.search(card_id_pattern, line, re.IGNORECASE)
 
     if match:
@@ -99,13 +100,14 @@ def validate_card_id(card_id: str) -> bool:
     Returns:
         True 如果格式正确，否则 False
     """
-    # 检查是否以 mio- 开头
-    if not card_id.startswith('mio-'):
-        return False
+    # 移除可能的 mio- 前缀进行检查
+    clean_id = card_id.lower()
+    if clean_id.startswith('mio-'):
+        clean_id = clean_id[4:]
 
-    # 检查后面是否是 UUID 格式（带连字符）
-    uuid_pattern = r'^mio-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    return bool(re.match(uuid_pattern, card_id.lower()))
+    # 检查是否是 UUID 格式（带连字符）
+    uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    return bool(re.match(uuid_pattern, clean_id))
 
 
 def format_card_info(card_data: Dict) -> str:
