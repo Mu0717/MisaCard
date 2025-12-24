@@ -2283,12 +2283,12 @@
                         <div><span class="text-gray-600">状态：</span>${getStatusBadge(
                           card.status
                         )}</div>
-                        <div><span class="text-gray-600">过期时间：</span><span class="font-semibold">${
+                        <div><span class="text-gray-600">激活时间：</span><span class="font-semibold">${
                           card.exp_date
                             ? formatDate(
                                 new Date(
                                   new Date(card.exp_date).getTime() -
-                                    2 * 60 * 60 * 1000
+                                    1 * 60 * 60 * 1000
                                 )
                               )
                             : "-"
