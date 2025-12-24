@@ -1,7 +1,8 @@
 import httpx
 from typing import Dict, Any, Optional
 
-MERCURY_API_URL = "https://mercury.wxie.de/api/keys/redeem"
+MERCURY_REDEEM_URL = "https://mercury.wxie.de/api/keys/redeem"
+MERCURY_QUERY_URL = "https://mercury.wxie.de/api/keys/query"
 
 async def redeem_key(key_id: str) -> Dict[str, Any]:
     """
@@ -34,15 +35,34 @@ async def redeem_key(key_id: str) -> Dict[str, Any]:
     payload = {"key_id": key_id}
 
     async with httpx.AsyncClient() as client:
-        # Note: http2=True helps in mimicking the browser's HTTP/2 behavior if the server supports it,
-        # otherwise it falls back to HTTP/1.1.
-        response = await client.post(MERCURY_API_URL, json=payload, headers=headers)
-        
-        # Raise for status to ensure we catch HTTP errors
-        # response.raise_for_status() 
-        # We might want to return the JSON even if it's an error status, depending on API behavior.
-        # But generally, let's just return the json.
-        
+        # Step 1: Query the key status first
+        try:
+            query_response = await client.post(MERCURY_QUERY_URL, json=payload, headers=headers)
+            query_data = query_response.json()
+            
+            # If success is True, it means the card is already active
+            if query_data.get("success") is True:
+                return query_data
+                
+            # If success is False and error is "卡密未使用" (Card unused), proceed to redeem
+            if query_data.get("success") is False and query_data.get("error") == "卡密未使用":
+                pass # Continue to redeem
+            else:
+                # If it's another error (e.g. invalid key), return the query result
+                return query_data
+                
+        except Exception as e:
+            # If query fails network-wise, maybe we should try redeem or just raise?
+            # For now, let's log/print and try redeem or just re-raise. 
+            # Given the script nature, if query fails, redeem likely fails too or we shouldn't proceed.
+            # But to be safe and robust, let's assume if query crashes, we abort.
+            # However, to match previous behavior, if something goes wrong with query that isn't the specific "unused" case, 
+            # we might return the error.
+            print(f"Error checking key status: {e}")
+            return {"success": False, "error": f"Network/Query Error: {str(e)}"}
+
+        # Step 2: Redeem if unused
+        response = await client.post(MERCURY_REDEEM_URL, json=payload, headers=headers)
         return response.json()
 
 if __name__ == "__main__":
