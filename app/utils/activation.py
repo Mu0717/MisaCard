@@ -167,7 +167,7 @@ def extract_card_info(api_response: Dict) -> Dict:
         
     # 其他字段
     # 强制统一账单地址
-    info["billing_address"] = "21700 W 50TH ST, SHAWNEE, KS 66226"
+    info["billing_address"] = "41 Glenn Rd C23, East Hartford, CT 06118"
     info["card_nickname"] = card_data.get("card_nickname") or f"Card {info['card_number'][-4:] if info['card_number'] else ''}"
     info["card_limit"] = card_data.get("card_limit", 0)
     info["status"] = "已激活" if api_response.get("success") else "unknown"
