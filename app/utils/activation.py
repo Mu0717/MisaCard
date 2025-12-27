@@ -171,7 +171,37 @@ def extract_card_info(api_response: Dict) -> Dict:
     info["card_nickname"] = card_data.get("card_nickname") or f"Card {info['card_number'][-4:] if info['card_number'] else ''}"
     info["card_limit"] = card_data.get("card_limit", 0)
     info["status"] = "已激活" if api_response.get("success") else "unknown"
-    info["create_time"] = card_data.get("created_time")
+    
+    # 定义中国时区
+    china_tz = timezone(timedelta(hours=8))
+
+    def convert_to_china_time(time_str: Optional[str]) -> Optional[str]:
+        if not time_str:
+            return None
+        try:
+             # 处理可能带有的 Z 后缀
+            if time_str.endswith('Z'):
+                time_str = time_str.replace('Z', '+00:00')
+            
+            # 解析 ISO 格式
+            dt = datetime.fromisoformat(time_str)
+            
+            # 如果没有时区信息，默认视为 UTC
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            
+            # 转换为中国时区
+            dt_cst = dt.astimezone(china_tz)
+            return dt_cst.isoformat()
+        except Exception as e:
+            print(f"时间转换出错 ({time_str}): {e}")
+            return time_str
+
+    # 激活时间匹配逻辑:
+    # 1. Query接口返回 used_time (在根节点)
+    # 2. Redeem接口返回 created_time (在 card 节点)
+    raw_create_time = api_response.get("used_time") or card_data.get("created_time")
+    info["create_time"] = convert_to_china_time(raw_create_time)
     
     # 计算 validity_hours
     expire_minutes = api_response.get("expire_minutes")
@@ -180,28 +210,31 @@ def extract_card_info(api_response: Dict) -> Dict:
     else:
         info["validity_hours"] = card_data.get("validity_hours")
         
-    # 计算系统过期时间 (这里视为激活时间 + expire_minutes)
-    # 使用中国时区 (UTC+8)
-    # 用户逻辑：卡密激活的时间(即现在) + expire_minutes
+    # 过期时间匹配逻辑:
+    # 1. 优先使用 API 返回的 expire_time (两个接口都在 card 节点)
+    # 2. 其次使用 delete_date
+    # 3. 最后尝试本地计算
     
-    calculated_exp_date = None
-    if expire_minutes is not None:
-        try:
-            # 定义中国时区
-            china_tz = timezone(timedelta(hours=8))
-            
-            # 使用当前时间作为激活时间
-            dt = datetime.now(china_tz)
-            
-            # 加上过期分钟数
-            exp_dt = dt + timedelta(minutes=int(expire_minutes))
-            calculated_exp_date = exp_dt.isoformat()
-        except Exception as e:
-            print(f"计算过期时间出错: {e}")
-            pass
-            
-    # 优先使用计算出的时间，否则回退到 API 返回的时间
-    info["exp_date"] = calculated_exp_date or card_data.get("expire_time") or card_data.get("delete_date")
+    api_expire_time = card_data.get("expire_time") or card_data.get("delete_date")
+    
+    if api_expire_time:
+         info["exp_date"] = convert_to_china_time(api_expire_time)
+    else:
+        # 计算系统过期时间 (这里视为激活时间 + expire_minutes)
+        # 使用中国时区 (UTC+8)
+        calculated_exp_date = None
+        if expire_minutes is not None:
+            try:
+                # 使用当前时间作为激活时间
+                dt = datetime.now(china_tz)
+                
+                # 加上过期分钟数
+                exp_dt = dt + timedelta(minutes=int(expire_minutes))
+                calculated_exp_date = exp_dt.isoformat()
+            except Exception as e:
+                print(f"计算过期时间出错: {e}")
+                pass
+        info["exp_date"] = calculated_exp_date
     
     return info
 
