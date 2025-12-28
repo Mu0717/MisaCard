@@ -208,6 +208,7 @@ async def batch_activate_cards(
                         pass
                 
                 # 尝试更新，如果返回None说明卡片不存在，需要创建
+                print(f"[批量激活-存入数据库] CardID: {card_id}, exp_date: {exp_date}")
                 db_card = crud.activate_card_in_db(
                     db,
                     card_id,
@@ -230,6 +231,7 @@ async def batch_activate_cards(
                     )
                     crud.create_card(db, new_card, is_external=True)
                     # 再次尝试更新激活信息
+                    print(f"[批量激活-自动创建后存入] CardID: {card_id}, exp_date: {exp_date}")
                     crud.activate_card_in_db(
                         db,
                         card_id,
@@ -360,6 +362,7 @@ async def activate_card(
             pass
 
     # 尝试更新
+    print(f"[单张激活-存入数据库] CardID: {card_id}, exp_date: {exp_date}")
     db_card = crud.activate_card_in_db(
         db,
         card_id,
@@ -383,6 +386,7 @@ async def activate_card(
         crud.create_card(db, new_card, is_external=True)
         
         # 再次更新激活信息
+        print(f"[单张激活-自动创建后存入] CardID: {card_id}, exp_date: {exp_date}")
         db_card = crud.activate_card_in_db(
             db,
             card_id,
@@ -433,24 +437,12 @@ async def query_card(
     # 提取卡片信息
     card_info = extract_card_info(card_data)
 
-    # 解析过期时间（API返回的delete_date字段，是UTC+8时间）
-    from datetime import datetime, timezone, timedelta
+    # 解析过期时间
+    from datetime import datetime
     exp_date = None
     if card_info.get("exp_date"):
         try:
-            # 解析时间字符串
-            dt = datetime.fromisoformat(card_info["exp_date"].replace('Z', '+00:00'))
-
-            # 如果是 naive datetime（没有时区信息），说明是 UTC+8 时间
-            if dt.tzinfo is None:
-                # 先标记为 UTC+8
-                utc8 = timezone(timedelta(hours=8))
-                dt = dt.replace(tzinfo=utc8)
-                # 转换为 UTC 时间
-                exp_date = dt.astimezone(timezone.utc)
-            else:
-                # 如果已经有时区信息，转换为 UTC
-                exp_date = dt.astimezone(timezone.utc)
+            exp_date = datetime.fromisoformat(card_info["exp_date"].replace('Z', '+00:00'))
         except:
             pass
 
@@ -462,6 +454,7 @@ async def query_card(
 
     # 如果有卡号信息，说明已激活，更新完整信息
     if card_info.get("card_number"):
+        print(f"[查询卡片-存入数据库] CardID: {card_id}, exp_date: {exp_date}")
         crud.activate_card_in_db(
             db,
             card_id,
