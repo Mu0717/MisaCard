@@ -23,6 +23,8 @@ class Card(Base):
     card_exp_date = Column(String, nullable=True)
     # 账单地址
     billing_address = Column(String, nullable=True)
+    # 法律地址/详细地址信息 (JSON str)
+    legal_address = Column(String, nullable=True)
     # 额度
     card_limit = Column(Float, default=0.0)
     # 有效期小时数（对应API的exp_date字段，是整数如1表示1小时）

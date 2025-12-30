@@ -1,9 +1,10 @@
 """
 Pydantic 数据验证模型
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import datetime
+import json
 
 
 class CardBase(BaseModel):
@@ -47,6 +48,17 @@ class CardResponse(CardBase):
     is_sold: bool = False
     sold_time: Optional[datetime] = None
     is_external: bool = False
+    legal_address: Optional[dict] = None
+
+    @field_validator("legal_address", mode="before")
+    @classmethod
+    def parse_legal_address(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except:
+                return None
+        return v
 
     class Config:
         from_attributes = True

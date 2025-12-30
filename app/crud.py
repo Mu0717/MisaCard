@@ -159,18 +159,27 @@ def activate_card_in_db(
     card_exp_date: str,
     billing_address: Optional[str] = None,
     validity_hours: Optional[int] = None,
-    exp_date: Optional[datetime] = None
+    exp_date: Optional[datetime] = None,
+    legal_address: Optional[dict] = None
 ) -> Optional[models.Card]:
     """更新卡片激活信息"""
     db_card = get_card_by_id(db, card_id)
     if not db_card:
         return None
-
+    
+    import json
     from datetime import timezone
     db_card.card_number = card_number
     db_card.card_cvc = card_cvc
     db_card.card_exp_date = card_exp_date
     db_card.billing_address = billing_address
+    
+    if legal_address:
+        try:
+            db_card.legal_address = json.dumps(legal_address, ensure_ascii=False)
+        except:
+            db_card.legal_address = None
+            
     db_card.is_activated = True
     db_card.status = "active"
     db_card.card_activation_time = datetime.now(timezone.utc)

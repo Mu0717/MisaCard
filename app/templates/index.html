@@ -719,7 +719,7 @@
 
       <!-- 查询激活页面 -->
       <div id="page-query" class="p-8 hidden">
-        <h2 class="text-3xl font-bold text-gray-800 mb-6">查询并激活卡片 账单地址：41 Glenn Rd C23, East Hartford, CT 06118</h2>
+        <h2 class="text-3xl font-bold text-gray-800 mb-6">查询并激活卡片</h2>
 
         <!-- 切换单个/批量/卡号查询模式的按钮 -->
         <div class="max-w-2xl mb-4">
@@ -1422,6 +1422,7 @@
                                 <div class="text-sm text-gray-900">$${card.card_limit
                 }</div>
                             </td>
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm ${expireInfo.color}">${expireInfo.text
                 }</div>
@@ -1714,6 +1715,10 @@
           )}</span></div>`
           : ""
         }
+                        <div class="col-span-2 mt-2 pt-2 border-t border-gray-100">
+                            <span class="text-gray-600 block mb-1">账单地址：</span>
+                            <span class="font-mono text-sm break-all bg-gray-50 px-2 py-1 rounded block">${card.billing_address || "暂无信息"}</span>
+                        </div>
                     </div>
                     ${card.card_number
           ? `
@@ -1918,6 +1923,8 @@
                   }</div>
                                             <div><span class="text-gray-600">额度:</span> $${cardData.card_limit || 0
                   }</div>
+                                            <div class="col-span-2 border-t pt-1 mt-1"><span class="text-gray-600">账单地址:</span> <span class="font-mono text-xs select-all">${cardData.billing_address || "N/A"
+                  }</span></div>
                                         </div>
                                         <button onclick="viewCardTransactionsByCardId('${item.card_id
                   }')" 
@@ -2192,8 +2199,8 @@
           cardInfo.status || "N/A"
         )}</span></div>`;
         html += `<div><span class="text-gray-600">余额：</span><span class="font-bold text-green-600 text-lg">$${cardInfo.available !== undefined
-            ? cardInfo.available.toFixed(2)
-            : "N/A"
+          ? cardInfo.available.toFixed(2)
+          : "N/A"
           }</span></div>`;
         html += `<div><span class="text-gray-600">已用：</span><span class="font-bold text-blue-600 text-lg">$${cardInfo.pending !== undefined ? cardInfo.pending.toFixed(2) : "N/A"
           }</span></div>`;
@@ -3132,15 +3139,16 @@
         }
 
         // 格式化卡片信息
+        const addr = card.legal_address || {};
         const cardInfo = `卡号: ${card.card_number}
 有效期: ${card.card_exp_date || "未知"}
 安全码/CVC: ${card.card_cvc || "未知"}
 姓名: ${generateRandomName()}
-国家: 美国
-地址第一行: 41 Glenn Rd C23
-城市: East Hartford
-州: Connecticut
-邮编: 06118`;
+国家: ${addr.country || "US"}
+地址第一行: ${addr.address1 || "41 Glenn Rd C23"}
+城市: ${addr.city || "East Hartford"}
+州: ${addr.region || "CT"}
+邮编: ${addr.postal_code || "06118"}`;
 
         // 复制到剪贴板
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -3424,10 +3432,10 @@
     function showToast (message, type = "info") {
       const toast = document.createElement("div");
       toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white z-50 fade-in ${type === "success"
-          ? "bg-green-500"
-          : type === "error"
-            ? "bg-red-500"
-            : "bg-blue-500"
+        ? "bg-green-500"
+        : type === "error"
+          ? "bg-red-500"
+          : "bg-blue-500"
         }`;
       toast.textContent = message;
       document.body.appendChild(toast);
@@ -3562,8 +3570,11 @@
               item.retry_count > 0
                 ? ` (重试${item.retry_count}次后成功)`
                 : "";
+            const addressText = item.billing_address
+              ? ` [账单地址: ${item.billing_address}]`
+              : "";
             addActivateLog(
-              `  ✓ ${item.card_id}${retryText}`,
+              `  ✓ ${item.card_id}${addressText}${retryText}`,
               "text-green-600 text-sm"
             );
           });

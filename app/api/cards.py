@@ -215,9 +215,10 @@ async def batch_activate_cards(
                     str(card_info.get("card_number") or ""),
                     str(card_info.get("card_cvc") or ""),
                     str(card_info.get("card_exp_date") or ""),
-                    card_info.get("billing_address"),
+                    billing_address=card_info.get("billing_address"),
                     validity_hours=card_info.get("validity_hours"),
-                    exp_date=exp_date
+                    exp_date=exp_date,
+                    legal_address=card_info.get("legal_address")
                 )
                 
                 if not db_card:
@@ -240,7 +241,8 @@ async def batch_activate_cards(
                         str(card_info.get("card_exp_date") or ""),
                         card_info.get("billing_address"),
                         validity_hours=card_info.get("validity_hours"),
-                        exp_date=exp_date
+                        exp_date=exp_date,
+                        legal_address=card_info.get("legal_address")
                     )
                 
                 try:
@@ -254,7 +256,8 @@ async def batch_activate_cards(
                     "success": True,
                     "message": message,
                     "retry_count": retry_count,
-                    "status": "已激活"
+                    "status": "已激活",
+                    "billing_address": card_info.get("billing_address")
                 }
                 results["success"].append(result)
                 results["success_count"] += 1
@@ -371,7 +374,8 @@ async def activate_card(
         str(card_info.get("card_exp_date") or ""),
         card_info.get("billing_address"),
         validity_hours=card_info.get("validity_hours"),
-        exp_date=exp_date
+        exp_date=exp_date,
+        legal_address=card_info.get("legal_address")
     )
 
     if not db_card:
@@ -395,7 +399,8 @@ async def activate_card(
             str(card_info.get("card_exp_date") or ""),
             card_info.get("billing_address"),
             validity_hours=card_info.get("validity_hours"),
-            exp_date=exp_date
+            exp_date=exp_date,
+            legal_address=card_info.get("legal_address")
         )
 
     # 记录成功日志
@@ -463,7 +468,8 @@ async def query_card(
             card_info["card_exp_date"],
             card_info.get("billing_address"),
             validity_hours=card_info.get("validity_hours"),
-            exp_date=exp_date
+            exp_date=exp_date,
+            legal_address=card_info.get("legal_address")
         )
     else:
         # 未激活，只更新基本信息和过期时间

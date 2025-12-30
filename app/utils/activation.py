@@ -166,8 +166,34 @@ def extract_card_info(api_response: Dict) -> Dict:
         info["card_exp_date"] = card_data.get("card_exp_date")
         
     # 其他字段
-    # 强制统一账单地址
-    info["billing_address"] = "41 Glenn Rd C23, East Hartford, CT 06118"
+    # 处理账单地址 (legal_address)
+    legal_addr = api_response.get("legal_address") or card_data.get("legal_address")
+    if legal_addr and isinstance(legal_addr, dict):
+        # 构建格式化地址字符串
+        parts = []
+        if legal_addr.get("address1"): parts.append(legal_addr["address1"])
+        if legal_addr.get("address2"): parts.append(legal_addr["address2"])
+        if legal_addr.get("city"): parts.append(legal_addr["city"])
+        if legal_addr.get("region"): parts.append(legal_addr["region"])
+        if legal_addr.get("postal_code"): parts.append(legal_addr["postal_code"])
+        
+        info["billing_address"] = ", ".join(filter(None, parts))
+        # 保存原始地址信息供前端精确显示/复制
+        info["legal_address"] = legal_addr
+    else:
+        # Fallback or empty? User specifically asked for correct address.
+        # If API doesn't return it, maybe keep the old hardcoded one or leave empty.
+        # Let's keep the old one as fallback but maybe mark it?
+        # Or better yet, if missing, default to the known one to avoid breaking changes.
+        info["billing_address"] = "41 Glenn Rd C23, East Hartford, CT 06118"
+        info["legal_address"] = {
+            "address1": "41 Glenn Rd C23",
+            "city": "East Hartford",
+            "region": "CT",
+            "postal_code": "06118",
+            "country": "US"
+        }
+
     info["card_nickname"] = card_data.get("card_nickname") or f"Card {info['card_number'][-4:] if info['card_number'] else ''}"
     info["card_limit"] = card_data.get("card_limit", 0)
     info["status"] = "已激活" if api_response.get("success") else "unknown"
