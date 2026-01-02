@@ -67,6 +67,12 @@ async def root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/mobile.html")
+async def mobile(request: Request):
+    """移动端页面"""
+    return templates.TemplateResponse("mobile.html", {"request": request})
+
+
 @app.get("/health")
 async def health_check():
     """健康检查端点"""

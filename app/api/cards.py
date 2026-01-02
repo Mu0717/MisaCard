@@ -57,6 +57,18 @@ async def get_card(
     return db_card
 
 
+@router.get("/public/{card_id}", response_model=schemas.CardResponse)
+async def get_card_for_copy(
+    card_id: str,
+    db: Session = Depends(get_db)
+):
+    """获取单个卡片信息（不需要鉴权，用于复制卡片信息）"""
+    db_card = crud.get_card_by_id(db, card_id)
+    if not db_card:
+        raise HTTPException(status_code=404, detail="卡片不存在")
+    return db_card
+
+
 @router.put("/{card_id}", response_model=schemas.CardResponse)
 async def update_card(
     card_id: str,
