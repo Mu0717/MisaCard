@@ -415,18 +415,7 @@
         </div>
       </div>
 
-      <div
-        style="
-          text-align: center;
-          padding: 1rem;
-          color: white;
-          font-size: 0.875rem;
-          opacity: 0.8;
-        "
-      >
-        <p>发卡系统 v2.0.0 (Mobile)</p>
-        <p style="margin-top: 0.25rem">© 2026 All Rights Reserved</p>
-      </div>
+      
     </div>
 
     <!-- Main App -->
@@ -732,7 +721,7 @@
               display: flex;
               justify-content: space-between;
               align-items: center;
-              margin-bottom: 1rem;
+              margin-bottom: 0.75rem;
             "
           >
             <span style="font-size: 0.875rem; color: #6b7280">
@@ -757,6 +746,77 @@
               🔄 刷新
             </button>
           </div>
+
+          <!-- 批量操作栏 -->
+          <div
+            style="
+              display: flex;
+              gap: 0.5rem;
+              align-items: center;
+              margin-bottom: 1rem;
+              padding: 0.75rem;
+              background: #f9fafb;
+              border-radius: 0.5rem;
+            "
+          >
+            <label
+              style="
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                cursor: pointer;
+                flex: 1;
+              "
+            >
+              <input
+                type="checkbox"
+                id="selectAllCards"
+                onchange="toggleSelectAll()"
+                style="width: 1.25rem; height: 1.25rem; cursor: pointer"
+              />
+              <span
+                style="font-size: 0.875rem; font-weight: 600; color: #374151"
+              >
+                全选 (<span id="selectedCount">0</span>)
+              </span>
+            </label>
+            <button
+              id="batchCopyBtn"
+              onclick="batchCopyCardIds()"
+              disabled
+              style="
+                padding: 0.5rem 1rem;
+                background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                color: white;
+                border: none;
+                border-radius: 0.5rem;
+                font-weight: 600;
+                font-size: 0.75rem;
+                opacity: 0.5;
+                cursor: not-allowed;
+              "
+            >
+              📋 复制卡密
+            </button>
+            <button
+              id="batchMarkSoldBtn"
+              onclick="batchMarkAsSold()"
+              disabled
+              style="
+                padding: 0.5rem 1rem;
+                background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+                color: white;
+                border: none;
+                border-radius: 0.5rem;
+                font-weight: 600;
+                font-size: 0.75rem;
+                opacity: 0.5;
+                cursor: not-allowed;
+              "
+            >
+              ✅ 标记售卖
+            </button>
+          </div>
         </div>
 
         <!-- Card List Container -->
@@ -764,18 +824,6 @@
       </div>
 
       <!-- Footer -->
-      <div
-        style="
-          text-align: center;
-          padding: 1rem;
-          color: white;
-          font-size: 0.875rem;
-          opacity: 0.8;
-        "
-      >
-        <p>发卡系统 v2.0.0 (Mobile)</p>
-        <p style="margin-top: 0.25rem">© 2026 All Rights Reserved</p>
-      </div>
     </div>
 
     <script>
@@ -1834,23 +1882,34 @@
           cards.forEach((card) => {
             html += `
               <div class="card fade-in" style="margin-bottom: 0.75rem;">
-                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
-                  <div style="flex: 1;">
+                <!-- 第一行: 复选框 + 卡密 -->
+                <div style="display: flex; align-items: start; gap: 0.75rem;">
+                  <input
+                    type="checkbox"
+                    class="card-checkbox"
+                    data-card-id="${card.card_id}"
+                    onchange="updateSelectedCount()"
+                    style="width: 1.25rem; height: 1.25rem; margin-top: 0.125rem; cursor: pointer; flex-shrink: 0;"
+                  />
+                  <div style="flex: 1; min-width: 0;">
                     <div 
-                      style="font-weight: 700; color: #111827; font-size: 0.875rem; margin-bottom: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; cursor: pointer;"
+                      style="font-weight: 700; color: #111827; font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;"
                       title="${card.card_id}"
                       ontouchstart="showCardIdTooltip(event, '${card.card_id}')"
                       ontouchend="hideCardIdTooltip()"
                     >
                       ${card.card_id}
                     </div>
-                    <div style="font-size: 0.75rem; color: #6b7280;">
-                      ${card.card_number || "未激活"}
-                    </div>
                   </div>
-                  <div>
+                </div>
+                
+                <!-- 第二行: 卡号 + 状态 -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; padding-left: 2rem;">
+                  <div style="font-size: 0.75rem; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    ${card.card_number || "未激活"}
+                  </div>
+                  <div style="flex-shrink: 0; margin-left: 0.5rem;">
                     ${getStatusBadge(card.status)}
-                    
                   </div>
                 </div>
                 
@@ -1925,6 +1984,181 @@
             </div>
           `;
           showToast("加载卡片列表失败", "error");
+        } finally {
+          hideLoading();
+        }
+      }
+
+      // ==================== Batch Selection ====================
+      function toggleSelectAll() {
+        const selectAllCheckbox = document.getElementById("selectAllCards");
+        const cardCheckboxes = document.querySelectorAll(".card-checkbox");
+
+        cardCheckboxes.forEach((checkbox) => {
+          checkbox.checked = selectAllCheckbox.checked;
+        });
+
+        updateSelectedCount();
+      }
+
+      function updateSelectedCount() {
+        const cardCheckboxes = document.querySelectorAll(".card-checkbox");
+        const selectedCheckboxes = document.querySelectorAll(
+          ".card-checkbox:checked"
+        );
+        const selectedCount = selectedCheckboxes.length;
+
+        // 更新选中计数
+        document.getElementById("selectedCount").textContent = selectedCount;
+
+        // 更新全选复选框状态
+        const selectAllCheckbox = document.getElementById("selectAllCards");
+        if (selectedCount === 0) {
+          selectAllCheckbox.checked = false;
+          selectAllCheckbox.indeterminate = false;
+        } else if (selectedCount === cardCheckboxes.length) {
+          selectAllCheckbox.checked = true;
+          selectAllCheckbox.indeterminate = false;
+        } else {
+          selectAllCheckbox.checked = false;
+          selectAllCheckbox.indeterminate = true;
+        }
+
+        // 更新批量复制按钮状态
+        const batchCopyBtn = document.getElementById("batchCopyBtn");
+        const batchMarkSoldBtn = document.getElementById("batchMarkSoldBtn");
+
+        if (selectedCount > 0) {
+          batchCopyBtn.disabled = false;
+          batchCopyBtn.style.opacity = "1";
+          batchCopyBtn.style.cursor = "pointer";
+
+          batchMarkSoldBtn.disabled = false;
+          batchMarkSoldBtn.style.opacity = "1";
+          batchMarkSoldBtn.style.cursor = "pointer";
+        } else {
+          batchCopyBtn.disabled = true;
+          batchCopyBtn.style.opacity = "0.5";
+          batchCopyBtn.style.cursor = "not-allowed";
+
+          batchMarkSoldBtn.disabled = true;
+          batchMarkSoldBtn.style.opacity = "0.5";
+          batchMarkSoldBtn.style.cursor = "not-allowed";
+        }
+      }
+
+      function batchCopyCardIds() {
+        const selectedCheckboxes = document.querySelectorAll(
+          ".card-checkbox:checked"
+        );
+
+        if (selectedCheckboxes.length === 0) {
+          showToast("请先选择要复制的卡片", "error");
+          return;
+        }
+
+        // 收集所有选中的卡密
+        const cardIds = Array.from(selectedCheckboxes).map((checkbox) =>
+          checkbox.getAttribute("data-card-id")
+        );
+
+        // 将卡密用换行符连接
+        const cardIdsText = cardIds.join("\n");
+
+        // 复制到剪贴板
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard
+            .writeText(cardIdsText)
+            .then(() => {
+              showToast(`已复制 ${cardIds.length} 个卡密到剪贴板`, "success");
+
+              // 取消所有选中
+              selectedCheckboxes.forEach((checkbox) => {
+                checkbox.checked = false;
+              });
+              updateSelectedCount();
+            })
+            .catch(() => {
+              fallbackCopy(cardIdsText);
+            });
+        } else {
+          fallbackCopy(cardIdsText);
+
+          // 取消所有选中
+          selectedCheckboxes.forEach((checkbox) => {
+            checkbox.checked = false;
+          });
+          updateSelectedCount();
+        }
+      }
+
+      // ==================== Batch Mark As Sold ====================
+      async function batchMarkAsSold() {
+        const selectedCheckboxes = document.querySelectorAll(
+          ".card-checkbox:checked"
+        );
+
+        if (selectedCheckboxes.length === 0) {
+          showToast("请先选择要标记的卡片", "error");
+          return;
+        }
+
+        // 收集所有选中的卡密
+        const cardIds = Array.from(selectedCheckboxes).map((checkbox) =>
+          checkbox.getAttribute("data-card-id")
+        );
+
+        // 确认操作
+        if (!confirm(`确定要将 ${cardIds.length} 张卡片标记为已售卖吗？`)) {
+          return;
+        }
+
+        showLoading();
+
+        let successCount = 0;
+        let failCount = 0;
+
+        try {
+          // 批量标记售卖
+          for (const cardId of cardIds) {
+            try {
+              const response = await fetch(`/api/cards/${cardId}/mark-sold`, {
+                method: "POST",
+                headers: {
+                  Authorization: "Bearer " + AuthManager.getToken(),
+                },
+              });
+
+              if (response.ok) {
+                successCount++;
+              } else {
+                failCount++;
+              }
+            } catch (error) {
+              failCount++;
+            }
+          }
+
+          // 显示结果
+          showToast(
+            `成功标记 ${successCount} 张，失败 ${failCount} 张`,
+            successCount > 0 ? "success" : "error"
+          );
+
+          // 取消所有选中
+          selectedCheckboxes.forEach((checkbox) => {
+            checkbox.checked = false;
+          });
+          updateSelectedCount();
+
+          // 刷新列表
+          if (successCount > 0) {
+            setTimeout(() => {
+              loadCardList();
+            }, 1000);
+          }
+        } catch (error) {
+          showToast("批量标记失败: " + error.message, "error");
         } finally {
           hideLoading();
         }
