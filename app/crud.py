@@ -45,8 +45,12 @@ def get_cards(
     limit: int = 100,
     status: Optional[str] = None,
     search: Optional[str] = None
-) -> list[models.Card]:
-    """获取卡片列表（支持筛选和搜索）"""
+) -> tuple[list[models.Card], int]:
+    """获取卡片列表（支持筛选和搜索）
+    
+    返回:
+        tuple: (卡片列表, 筛选后的总数量)
+    """
     # 先更新所有过期的卡片状态
     update_expired_cards(db)
 
@@ -66,7 +70,13 @@ def get_cards(
             )
         )
 
-    return query.offset(skip).limit(limit).all()
+    # 先计算筛选后的总数
+    total = query.count()
+    
+    # 再应用分页
+    cards = query.offset(skip).limit(limit).all()
+    
+    return cards, total
 
 
 def update_expired_cards(db: Session) -> int:

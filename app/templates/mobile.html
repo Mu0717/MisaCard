@@ -414,8 +414,6 @@
           </button>
         </div>
       </div>
-
-      
     </div>
 
     <!-- Main App -->
@@ -714,6 +712,28 @@
               <option value="sold">已售卖</option>
               <option value="unsold">未售卖</option>
             </select>
+
+            <label
+              style="
+                display: block;
+                font-weight: 600;
+                color: #374151;
+                margin-bottom: 0.5rem;
+                font-size: 0.875rem;
+              "
+            >
+              额度筛选
+            </label>
+            <input
+              type="number"
+              id="limitFilter"
+              class="input-field"
+              placeholder="筛选额度 (如: 1, 2, 5)"
+              step="0.01"
+              min="0"
+              style="margin-bottom: 0.75rem"
+              oninput="loadCardList()"
+            />
           </div>
 
           <div
@@ -1827,6 +1847,7 @@
         const status = document.getElementById("cardStatusFilter")?.value || "";
         const soldFilter =
           document.getElementById("cardSoldFilter")?.value || "";
+        const limitFilter = document.getElementById("limitFilter")?.value || "";
         const container = document.getElementById("cardListContainer");
 
         showLoading();
@@ -1851,7 +1872,9 @@
             throw new Error("加载失败");
           }
 
-          let cards = await response.json();
+          let data = await response.json();
+          // 新的API返回格式: { items: [], total: 0, skip: 0, limit: 100 }
+          let cards = data.items || data; // 兼容新旧格式
 
           // 客户端筛选售卖状态
           if (soldFilter) {
@@ -1859,6 +1882,14 @@
               cards = cards.filter((card) => card.is_sold === true);
             } else if (soldFilter === "unsold") {
               cards = cards.filter((card) => !card.is_sold);
+            }
+          }
+
+          // 客户端筛选额度
+          if (limitFilter) {
+            const limitValue = parseFloat(limitFilter);
+            if (!isNaN(limitValue)) {
+              cards = cards.filter((card) => card.card_limit === limitValue);
             }
           }
 

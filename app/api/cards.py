@@ -30,7 +30,7 @@ async def create_card(
     return db_card
 
 
-@router.get("/", response_model=List[schemas.CardResponse])
+@router.get("/", response_model=schemas.CardListResponse)
 async def list_cards(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=50000),
@@ -40,8 +40,13 @@ async def list_cards(
     current_user: dict = Depends(get_current_user)
 ):
     """获取卡片列表（支持分页、筛选、搜索）（需要鉴权）"""
-    cards = crud.get_cards(db, skip=skip, limit=limit, status=status, search=search)
-    return cards
+    cards, total = crud.get_cards(db, skip=skip, limit=limit, status=status, search=search)
+    return {
+        "items": cards,
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }
 
 
 @router.get("/{card_id}", response_model=schemas.CardResponse)

@@ -108,3 +108,12 @@ class APIResponse(BaseModel):
     success: bool
     message: str
     data: Optional[dict] = None
+
+
+class CardListResponse(BaseModel):
+    """卡片列表响应模型（带分页信息）"""
+    items: list[CardResponse]
+    total: int
+    skip: int
+    limit: int
+
