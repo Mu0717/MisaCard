@@ -314,6 +314,64 @@
       </div>
     </div>
 
+    <!-- Copy Modal -->
+    <div id="copyModal" class="loading">
+      <div
+        class="fade-in"
+        style="
+          background: white;
+          border-radius: 1rem;
+          padding: 1.5rem;
+          width: 90%;
+          max-width: 400px;
+          position: relative;
+        "
+      >
+        <h3
+          style="
+            font-size: 1.125rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: #111827;
+            text-align: center;
+          "
+        >
+          📋 复制信息
+        </h3>
+        <p style="font-size: 0.875rem; color: #6b7280; margin-bottom: 0.5rem">
+          请点击下方按钮进行复制
+        </p>
+        <textarea
+          id="copyContent"
+          class="input-field"
+          rows="8"
+          readonly
+          style="
+            margin-bottom: 1rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+          "
+          onclick="this.select()"
+        ></textarea>
+        <div style="display: flex; gap: 0.75rem">
+          <button
+            class="btn"
+            onclick="closeCopyModal()"
+            style="background: #f3f4f6; color: #374151; flex: 1"
+          >
+            关闭
+          </button>
+          <button
+            class="btn btn-primary"
+            onclick="doCopyCallback()"
+            style="flex: 1"
+          >
+            确认复制
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Login Page -->
     <div id="loginPage" class="container" style="display: block">
       <div class="header">
@@ -1682,7 +1740,11 @@
         }
 
         const text = element.textContent.trim();
+        // 直接尝试复制，如果是从点击事件触发应该没问题
+        manualCopy(text);
+      }
 
+      function manualCopy(text) {
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard
             .writeText(text)
@@ -1698,26 +1760,64 @@
       }
 
       function fallbackCopy(text) {
-        const textarea = document.createElement("textarea");
-        textarea.value = text;
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.select();
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+
+        // iOS 兼容性设置
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        textArea.setAttribute("readonly", "");
+
+        document.body.appendChild(textArea);
+
+        // 选择文本 (iOS 兼容)
+        const range = document.createRange();
+        range.selectNodeContents(textArea);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        textArea.setSelectionRange(0, 999999);
+
         try {
-          document.execCommand("copy");
-          showToast("已复制到剪贴板", "success");
+          const successful = document.execCommand("copy");
+          if (successful) {
+            showToast("已复制到剪贴板", "success");
+          } else {
+            showToast("复制失败，请手动复制", "error");
+          }
         } catch (err) {
           showToast("复制失败", "error");
+        } finally {
+          document.body.removeChild(textArea);
         }
-        document.body.removeChild(textarea);
+      }
+
+      // ==================== Copy Modal ====================
+      function showCopyModal(text) {
+        document.getElementById("copyContent").value = text;
+        document.getElementById("copyModal").classList.add("active");
+        // 自动聚焦
+        setTimeout(() => {
+          document.getElementById("copyContent").select();
+        }, 100);
+      }
+
+      function closeCopyModal() {
+        document.getElementById("copyModal").classList.remove("active");
+      }
+
+      function doCopyCallback() {
+        const text = document.getElementById("copyContent").value;
+        manualCopy(text);
+        closeCopyModal();
       }
 
       // 复制完整卡片信息
       async function copyCardInfo(cardId) {
         try {
           showLoading();
-          // 获取卡片详细信息（使用公开接口,不需要鉴权）
+          // 获取卡片详细信息
           const response = await fetch(`/api/cards/public/${cardId}`);
           const card = await response.json();
 
@@ -1749,13 +1849,9 @@
 州: ${addr.region || "CT"}
 邮编: ${addr.postal_code || "06118"}`;
 
-          // 复制到剪贴板
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(cardInfo);
-            showToast("卡片信息已复制到剪贴板", "success");
-          } else {
-            fallbackCopy(cardInfo);
-          }
+          // 显示在模态框中供用户复制
+          // 这是解决移动端 async 函数中无法调用剪贴板 API 的关键
+          showCopyModal(cardInfo);
         } catch (error) {
           console.log(error, "===error");
           showToast("复制失败: " + error.message, "error");
@@ -2112,30 +2208,14 @@
         const cardIdsText = cardIds.join("\n");
 
         // 复制到剪贴板
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard
-            .writeText(cardIdsText)
-            .then(() => {
-              showToast(`已复制 ${cardIds.length} 个卡密到剪贴板`, "success");
+        manualCopy(cardIdsText);
+        showToast(`已复制 ${cardIds.length} 个卡密到剪贴板`, "success");
 
-              // 取消所有选中
-              selectedCheckboxes.forEach((checkbox) => {
-                checkbox.checked = false;
-              });
-              updateSelectedCount();
-            })
-            .catch(() => {
-              fallbackCopy(cardIdsText);
-            });
-        } else {
-          fallbackCopy(cardIdsText);
-
-          // 取消所有选中
-          selectedCheckboxes.forEach((checkbox) => {
-            checkbox.checked = false;
-          });
-          updateSelectedCount();
-        }
+        // 取消所有选中
+        selectedCheckboxes.forEach((checkbox) => {
+          checkbox.checked = false;
+        });
+        updateSelectedCount();
       }
 
       // ==================== Batch Mark As Sold ====================
