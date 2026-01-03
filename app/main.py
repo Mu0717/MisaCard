@@ -63,15 +63,19 @@ app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 @app.get("/")
 async def root(request: Request):
-    """首页 - 渲染前端界面"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    """激活页面"""
+    return templates.TemplateResponse("activate.html", {"request": request})
 
 
-@app.get("/mobile.html")
+@app.get("/mobile")
 async def mobile(request: Request):
     """移动端页面"""
     return templates.TemplateResponse("mobile.html", {"request": request})
 
+@app.get("/admin")
+async def activate(request: Request):
+    """管理界面"""
+    return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/health")
 async def health_check():

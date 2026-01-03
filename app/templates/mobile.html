@@ -1733,7 +1733,10 @@
           }
 
           // 解析地址信息
-          const addr = card.legal_address ? JSON.parse(card.legal_address) : {};
+          const addr =
+            (typeof card.legal_address === "string"
+              ? JSON.parse(card.legal_address)
+              : card.legal_address) || {};
 
           // 格式化卡片信息
           const cardInfo = `卡号: ${card.card_number}
@@ -1754,6 +1757,7 @@
             fallbackCopy(cardInfo);
           }
         } catch (error) {
+          console.log(error, "===error");
           showToast("复制失败: " + error.message, "error");
         } finally {
           hideLoading();
