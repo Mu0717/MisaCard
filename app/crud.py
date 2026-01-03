@@ -44,9 +44,25 @@ def get_cards(
     skip: int = 0,
     limit: int = 100,
     status: Optional[str] = None,
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    card_limit: Optional[float] = None,
+    refund_requested: Optional[bool] = None,
+    is_used: Optional[bool] = None,
+    is_sold: Optional[bool] = None,
+    exclude_deleted: bool = False
 ) -> tuple[list[models.Card], int]:
     """获取卡片列表（支持筛选和搜索）
+    
+    参数:
+        skip: 跳过的记录数
+        limit: 返回的最大记录数
+        status: 卡片状态筛选
+        search: 搜索关键词（卡密、昵称、卡号）
+        card_limit: 卡片额度筛选
+        refund_requested: 退款状态筛选
+        is_used: 使用状态筛选
+        is_sold: 售卖状态筛选
+        exclude_deleted: 是否排除已删除的卡片
     
     返回:
         tuple: (卡片列表, 筛选后的总数量)
@@ -59,6 +75,10 @@ def get_cards(
     # 状态筛选
     if status:
         query = query.filter(models.Card.status == status)
+    
+    # 排除已删除的卡片（当没有指定status且exclude_deleted为True时）
+    if exclude_deleted and not status:
+        query = query.filter(models.Card.status != 'deleted')
 
     # 搜索功能（卡密、昵称、卡号）
     if search:
@@ -69,6 +89,22 @@ def get_cards(
                 models.Card.card_number.contains(search)
             )
         )
+    
+    # 额度筛选
+    if card_limit is not None:
+        query = query.filter(models.Card.card_limit == card_limit)
+    
+    # 退款状态筛选
+    if refund_requested is not None:
+        query = query.filter(models.Card.refund_requested == refund_requested)
+    
+    # 使用状态筛选
+    if is_used is not None:
+        query = query.filter(models.Card.is_used == is_used)
+    
+    # 售卖状态筛选
+    if is_sold is not None:
+        query = query.filter(models.Card.is_sold == is_sold)
 
     # 先计算筛选后的总数
     total = query.count()

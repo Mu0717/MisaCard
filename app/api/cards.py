@@ -36,11 +36,27 @@ async def list_cards(
     limit: int = Query(100, ge=1, le=50000),
     status: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    card_limit: Optional[float] = Query(None, description="卡片额度筛选"),
+    refund_requested: Optional[bool] = Query(None, description="退款状态筛选"),
+    is_used: Optional[bool] = Query(None, description="使用状态筛选"),
+    is_sold: Optional[bool] = Query(None, description="售卖状态筛选"),
+    exclude_deleted: bool = Query(False, description="是否排除已删除的卡片"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """获取卡片列表（支持分页、筛选、搜索）（需要鉴权）"""
-    cards, total = crud.get_cards(db, skip=skip, limit=limit, status=status, search=search)
+    cards, total = crud.get_cards(
+        db, 
+        skip=skip, 
+        limit=limit, 
+        status=status, 
+        search=search,
+        card_limit=card_limit,
+        refund_requested=refund_requested,
+        is_used=is_used,
+        is_sold=is_sold,
+        exclude_deleted=exclude_deleted
+    )
     return {
         "items": cards,
         "total": total,

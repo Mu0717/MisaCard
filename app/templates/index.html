@@ -1879,64 +1879,73 @@
         }
 
         try {
-          // 加载所有数据（用于前端筛选和分页）
-          let url = "/api/cards/?limit=10000&";
-          if (search) url += "search=" + encodeURIComponent(search) + "&";
-          if (status) url += "status=" + encodeURIComponent(status);
+          // 构建查询参数 - 所有筛选由后端完成
+          const params = new URLSearchParams();
 
-          const response = await fetchWithAuth(url);
-          const data = await response.json();
-          // 新的API返回格式: { items: [], total: 0, skip: 0, limit: 100 }
-          let cards = data.items || data; // 兼容新旧格式
+          // 分页参数
+          params.append(
+            "skip",
+            (paginationState.currentPage - 1) * paginationState.pageSize
+          );
+          params.append("limit", paginationState.pageSize);
 
-          // 如果没有选择状态筛选，默认过滤掉已删除的卡片
-          if (!status) {
-            cards = cards.filter((card) => card.status !== "deleted");
+          // 搜索参数
+          if (search) params.append("search", search);
+
+          // 状态筛选
+          if (status) {
+            params.append("status", status);
+          } else {
+            // 如果没有选择状态筛选,默认排除已删除的卡片
+            params.append("exclude_deleted", "true");
           }
 
-          // 应用额度筛选
+          // 额度筛选
           if (limitFilter) {
             const limitValue = parseFloat(limitFilter);
             if (!isNaN(limitValue)) {
-              cards = cards.filter(
-                (card) => parseFloat(card.card_limit) === limitValue
-              );
+              params.append("card_limit", limitValue);
             }
           }
 
-          // 应用退款状态筛选
+          // 退款状态筛选
           if (refundFilter === "requested") {
-            cards = cards.filter((card) => card.refund_requested === true);
+            params.append("refund_requested", "true");
           } else if (refundFilter === "not_requested") {
-            cards = cards.filter((card) => !card.refund_requested);
+            params.append("refund_requested", "false");
           }
 
-          // 应用使用状态筛选
+          // 使用状态筛选
           if (usedFilter === "used") {
-            cards = cards.filter((card) => card.is_used === true);
+            params.append("is_used", "true");
           } else if (usedFilter === "not_used") {
-            cards = cards.filter((card) => !card.is_used);
+            params.append("is_used", "false");
           }
 
-          // 应用售卖状态筛选
+          // 售卖状态筛选
           if (soldFilter === "sold") {
-            cards = cards.filter((card) => card.is_sold === true);
+            params.append("is_sold", "true");
           } else if (soldFilter === "not_sold") {
-            cards = cards.filter((card) => !card.is_sold);
+            params.append("is_sold", "false");
           }
 
-          // 保存所有卡片数据
+          const url = `/api/cards/?${params.toString()}`;
+          const response = await fetchWithAuth(url);
+          const data = await response.json();
+
+          // 新的API返回格式: { items: [], total: 0, skip: 0, limit: 100 }
+          const cards = data.items || data; // 兼容新旧格式
+          const totalRecords = data.total || cards.length;
+
+          // 更新分页状态
           paginationState.allCards = cards;
-          paginationState.totalRecords = cards.length;
+          paginationState.totalRecords = totalRecords;
           paginationState.totalPages = Math.ceil(
-            cards.length / paginationState.pageSize
+            totalRecords / paginationState.pageSize
           );
 
-          // 计算当前页的数据范围
-          const startIndex =
-            (paginationState.currentPage - 1) * paginationState.pageSize;
-          const endIndex = startIndex + paginationState.pageSize;
-          const pageCards = cards.slice(startIndex, endIndex);
+          // 当前页的数据就是返回的数据(后端已分页)
+          const pageCards = cards;
 
           // 渲染表格
           const tbody = document.getElementById("cardsTableBody");
@@ -3468,14 +3477,8 @@
       // 一键选中已激活未使用的卡片（仅当前页）
       async function selectActivatedUnusedCards() {
         try {
-          // 从当前显示的卡片中筛选
-          const startIndex =
-            (paginationState.currentPage - 1) * paginationState.pageSize;
-          const endIndex = startIndex + paginationState.pageSize;
-          const pageCards = paginationState.allCards.slice(
-            startIndex,
-            endIndex
-          );
+          // 当前页的卡片数据(后端已筛选和分页)
+          const pageCards = paginationState.allCards;
 
           // 筛选已激活且未使用的卡片
           const targetCards = pageCards.filter(
@@ -3518,14 +3521,8 @@
       // 一键选中已激活未售卖的卡片（仅当前页）
       async function selectActivatedUnsoldCards() {
         try {
-          // 从当前显示的卡片中筛选
-          const startIndex =
-            (paginationState.currentPage - 1) * paginationState.pageSize;
-          const endIndex = startIndex + paginationState.pageSize;
-          const pageCards = paginationState.allCards.slice(
-            startIndex,
-            endIndex
-          );
+          // 当前页的卡片数据(后端已筛选和分页)
+          const pageCards = paginationState.allCards;
 
           // 筛选已激活且未售卖的卡片
           const targetCards = pageCards.filter(

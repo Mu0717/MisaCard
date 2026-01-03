@@ -1853,10 +1853,37 @@
         showLoading();
 
         try {
-          let url = "/api/cards/?limit=100";
-          if (search) url += "&search=" + encodeURIComponent(search);
-          if (status) url += "&status=" + encodeURIComponent(status);
+          // 构建查询参数 - 所有筛选由后端完成
+          const params = new URLSearchParams();
+          params.append("limit", "100");
 
+          // 搜索参数
+          if (search) params.append("search", search);
+
+          // 状态筛选
+          if (status) {
+            params.append("status", status);
+          } else {
+            // 如果没有选择状态筛选,默认排除已删除的卡片
+            params.append("exclude_deleted", "true");
+          }
+
+          // 售卖状态筛选
+          if (soldFilter === "sold") {
+            params.append("is_sold", "true");
+          } else if (soldFilter === "unsold") {
+            params.append("is_sold", "false");
+          }
+
+          // 额度筛选
+          if (limitFilter) {
+            const limitValue = parseFloat(limitFilter);
+            if (!isNaN(limitValue)) {
+              params.append("card_limit", limitValue);
+            }
+          }
+
+          const url = `/api/cards/?${params.toString()}`;
           const response = await fetch(url, {
             headers: {
               Authorization: "Bearer " + AuthManager.getToken(),
@@ -1875,25 +1902,9 @@
           let data = await response.json();
           // 新的API返回格式: { items: [], total: 0, skip: 0, limit: 100 }
           let cards = data.items || data; // 兼容新旧格式
+          const totalRecords = data.total || cards.length;
 
-          // 客户端筛选售卖状态
-          if (soldFilter) {
-            if (soldFilter === "sold") {
-              cards = cards.filter((card) => card.is_sold === true);
-            } else if (soldFilter === "unsold") {
-              cards = cards.filter((card) => !card.is_sold);
-            }
-          }
-
-          // 客户端筛选额度
-          if (limitFilter) {
-            const limitValue = parseFloat(limitFilter);
-            if (!isNaN(limitValue)) {
-              cards = cards.filter((card) => card.card_limit === limitValue);
-            }
-          }
-
-          document.getElementById("cardCount").textContent = cards.length;
+          document.getElementById("cardCount").textContent = totalRecords;
 
           if (cards.length === 0) {
             container.innerHTML = `
