@@ -11,6 +11,7 @@ class CardBase(BaseModel):
     """卡片基础模型"""
     card_id: str = Field(..., description="卡密")
     card_nickname: Optional[str] = Field(None, description="卡片昵称")
+    card_header: Optional[str] = Field(None, description="备注卡头")
     card_limit: float = Field(default=0.0, description="额度")
     validity_hours: Optional[int] = Field(None, description="有效期（小时）")
 
@@ -23,6 +24,7 @@ class CardCreate(CardBase):
 class CardUpdate(BaseModel):
     """更新卡片请求模型"""
     card_nickname: Optional[str] = None
+    card_header: Optional[str] = None
     card_limit: Optional[float] = None
     validity_hours: Optional[int] = None
     status: Optional[str] = None
@@ -48,6 +50,7 @@ class CardResponse(CardBase):
     is_sold: bool = False
     sold_time: Optional[datetime] = None
     is_external: bool = False
+    card_header: Optional[str] = None
     legal_address: Optional[dict] = None
 
     @field_validator("legal_address", mode="before")
@@ -69,6 +72,7 @@ class CardImportItem(BaseModel):
     card_id: str
     card_limit: float
     validity_hours: int
+    card_header: Optional[str] = None
 
 
 class CardImportRequest(BaseModel):

@@ -40,6 +40,7 @@ async def list_cards(
     refund_requested: Optional[bool] = Query(None, description="退款状态筛选"),
     is_used: Optional[bool] = Query(None, description="使用状态筛选"),
     is_sold: Optional[bool] = Query(None, description="售卖状态筛选"),
+    card_header: Optional[str] = Query(None, description="卡头筛选"),
     exclude_deleted: bool = Query(False, description="是否排除已删除的卡片"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
@@ -55,6 +56,7 @@ async def list_cards(
         refund_requested=refund_requested,
         is_used=is_used,
         is_sold=is_sold,
+        card_header=card_header,
         exclude_deleted=exclude_deleted
     )
     return {

@@ -4,6 +4,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from typing import Optional
 
 from .. import crud, schemas
 from ..database import get_db
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/import", tags=["import"])
 class TextImportRequest(BaseModel):
     """文本导入请求模型"""
     content: str
+    card_header: Optional[str] = None  # 备注卡头，用于标识本批次卡片
 
 
 @router.post("/text", response_model=schemas.CardImportResponse)
@@ -26,7 +28,9 @@ async def import_from_text(
 ):
     """
     从文本内容批量导入卡片（支持剪贴板粘贴）（需要鉴权）
-    支持格式：卡密: mio-xxx 额度: x 有效期: x小时
+    支持格式：
+    1. 卡密:xxx 额度:x 有效期:x小时 卡头:xxx（卡头可选）
+    2. 卡密: mio-xxx 额度: x 有效期: x小时
     """
     text_content = request.content.strip()
 
@@ -68,8 +72,10 @@ async def import_from_text(
                 })
                 continue
 
-            # 创建卡片
-            card_create = schemas.CardCreate(**card_data)
+            # 创建卡片（优先使用解析出的卡头，否则用请求级别的备注卡头）
+            final_card_header = card_data.get("card_header") or request.card_header
+            card_data_with_header = {**card_data, "card_header": final_card_header}
+            card_create = schemas.CardCreate(**card_data_with_header)
             crud.create_card(db, card_create)
             success_count += 1
 
@@ -122,11 +128,12 @@ async def import_from_json(
                 })
                 continue
 
-            # 创建卡片
+            # 创建卡片（支持每张卡单独设置备注卡头）
             card_create = schemas.CardCreate(
                 card_id=card_item.card_id,
                 card_limit=card_item.card_limit,
-                validity_hours=card_item.validity_hours
+                validity_hours=card_item.validity_hours,
+                card_header=card_item.card_header
             )
             crud.create_card(db, card_create)
             success_count += 1

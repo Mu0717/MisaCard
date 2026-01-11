@@ -15,6 +15,8 @@ class Card(Base):
     card_id = Column(String, unique=True, index=True, nullable=False)
     # 卡片昵称
     card_nickname = Column(String, nullable=True)
+    # 备注卡头（用于标识卡片来源/批次等）
+    card_header = Column(String, nullable=True)
     # 卡号（激活后才有）
     card_number = Column(String, nullable=True)
     # CVC（激活后才有）

@@ -802,6 +802,12 @@
                 min="0"
                 class="w-48 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
+              <input
+                type="text"
+                id="cardHeaderFilter"
+                placeholder="筛选卡头 (如: 5236xx)"
+                class="w-48 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
               <select
                 id="statusFilter"
                 class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -983,6 +989,11 @@
                       class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
                       额度
+                    </th>
+                    <th
+                      class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      卡头
                     </th>
                     <th
                       class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -1368,11 +1379,12 @@
               <textarea
                 id="importTextArea"
                 rows="15"
-                placeholder="粘贴卡片数据，每行一条&#10;格式：卡密: mio-xxx 额度: x 有效期: x小时&#10;&#10;示例：&#10;卡密: mio-f3dc27e4-e853-429a-9e4b-3294af7c25ca 额度: 1 有效期: 1小时&#10;卡密: mio-7441ca67-058b-4d98-885b-4774bfb7ba86 额度: 2 有效期: 1小时"
+                placeholder="粘贴卡片数据，每行一条&#10;格式：卡密:xxx 额度:x 有效期:x小时 卡头:xxx&#10;&#10;示例：&#10;卡密:01013bd7-f16b-44ad-a806-c4d61ea6a9fc 额度:0 有效期:1小时 卡头:5236xx&#10;卡密:mio-7441ca67-058b-4d98-885b-4774bfb7ba86 额度:2 有效期:1小时 卡头:5123xx"
                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 font-mono text-sm"
               ></textarea>
               <p class="mt-2 text-sm text-gray-500">
-                💡 提示：从文件或其他地方复制内容后，直接粘贴到上方文本框
+                💡
+                提示：从文件或其他地方复制内容后，直接粘贴到上方文本框。卡头字段可选，用于备注卡片来源
               </p>
               <button
                 onclick="importText()"
@@ -1872,6 +1884,8 @@
         const usedFilter = document.getElementById("usedFilter")?.value || "";
         const limitFilter = document.getElementById("limitFilter")?.value || "";
         const soldFilter = document.getElementById("soldFilter")?.value || "";
+        const cardHeaderFilter =
+          document.getElementById("cardHeaderFilter")?.value || "";
 
         // 重置到第一页（筛选条件改变时）
         if (resetPage) {
@@ -1927,6 +1941,11 @@
             params.append("is_sold", "true");
           } else if (soldFilter === "not_sold") {
             params.append("is_sold", "false");
+          }
+
+          // 卡头筛选
+          if (cardHeaderFilter) {
+            params.append("card_header", cardHeaderFilter);
           }
 
           const url = `/api/cards/?${params.toString()}`;
@@ -1998,6 +2017,10 @@
                                   card.card_limit
                                 }</div>
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900" title="${
+                                  card.card_header || ""
+                                }">${card.card_header || "-"}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm ${expireInfo.color}">${

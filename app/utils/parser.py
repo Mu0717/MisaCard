@@ -1,7 +1,9 @@
 """
 txt 文件解析器
 支持解析格式：
-卡密: mio-f3dc27e4-e853-429a-9e4b-3294af7c25ca 额度: 1 有效期: 1小时
+1. 卡密:01013bd7-f16b-44ad-a806-c4d61ea6a9fc 额度:0 有效期:1小时 卡头:5236xx
+2. 卡密: mio-f3dc27e4-e853-429a-9e4b-3294af7c25ca 额度: 1 有效期: 1小时
+3. 纯卡密格式: mio-xxx 或 uuid
 """
 import re
 from typing import List, Dict, Optional
@@ -12,21 +14,42 @@ def parse_card_line(line: str) -> Optional[Dict]:
     解析单行卡片数据
 
     支持多种格式：
-    1. 完整格式：卡密: mio-xxx 额度: 1 有效期: 1小时
-    2. 仅卡密：mio-xxx (使用默认额度1和有效期1小时)
+    1. 带卡头格式：卡密:xxx 额度:x 有效期:x小时 卡头:xxx
+    2. 完整格式：卡密: mio-xxx 额度: 1 有效期: 1小时
+    3. 仅卡密：mio-xxx (使用默认额度0和有效期1小时)
 
     Args:
         line: 包含卡片信息的文本行
 
     Returns:
-        解析后的字典，包含 card_id, card_limit, validity_hours
+        解析后的字典，包含 card_id, card_limit, validity_hours, card_header(可选)
         如果解析失败返回 None
     """
     line = line.strip()
     if not line:
         return None
 
-    # 方式1: 尝试匹配完整格式：卡密: xxx 额度: xxx 有效期: xxx小时
+    # 方式1: 尝试匹配带卡头的格式：卡密:xxx 额度:xxx 有效期:xxx小时 卡头:xxx
+    # 注意：冒号后可能没有空格
+    full_with_header_pattern = r'卡密:\s*([^\s]+)\s+额度:\s*(\d+(?:\.\d+)?)\s+有效期:\s*(\d+)\s*小时\s+卡头:\s*([^\s]+)'
+    match = re.search(full_with_header_pattern, line)
+
+    if match:
+        card_id = match.group(1).strip()
+        card_limit = float(match.group(2))
+        validity_hours = int(match.group(3))
+        card_header = match.group(4).strip()
+
+        # 验证卡密格式
+        if validate_card_id(card_id):
+            return {
+                "card_id": card_id,
+                "card_limit": card_limit,
+                "validity_hours": validity_hours,
+                "card_header": card_header
+            }
+
+    # 方式2: 尝试匹配不带卡头的完整格式：卡密: xxx 额度: xxx 有效期: xxx小时
     full_pattern = r'卡密:\s*([^\s]+)\s+额度:\s*(\d+(?:\.\d+)?)\s+有效期:\s*(\d+)\s*小时'
     match = re.search(full_pattern, line)
 
@@ -40,10 +63,11 @@ def parse_card_line(line: str) -> Optional[Dict]:
             return {
                 "card_id": card_id,
                 "card_limit": card_limit,
-                "validity_hours": validity_hours
+                "validity_hours": validity_hours,
+                "card_header": None
             }
 
-    # 方式2: 尝试从文本中提取卡密（可能有"卡密:"前缀）
+    # 方式3: 尝试从文本中提取卡密（可能有"卡密:"前缀）
     # 支持 mio-UUID 和纯 UUID 格式
     card_id_pattern = r'(?:卡密:\s*)?((?:mio-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
     match = re.search(card_id_pattern, line, re.IGNORECASE)
@@ -57,7 +81,8 @@ def parse_card_line(line: str) -> Optional[Dict]:
             return {
                 "card_id": card_id,
                 "card_limit": 0.0,  # 默认额度0（激活后从API获取实际额度）
-                "validity_hours": 1  # 默认有效期1小时
+                "validity_hours": 1,  # 默认有效期1小时
+                "card_header": None
             }
 
     return None

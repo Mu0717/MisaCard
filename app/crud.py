@@ -49,6 +49,7 @@ def get_cards(
     refund_requested: Optional[bool] = None,
     is_used: Optional[bool] = None,
     is_sold: Optional[bool] = None,
+    card_header: Optional[str] = None,
     exclude_deleted: bool = False
 ) -> tuple[list[models.Card], int]:
     """获取卡片列表（支持筛选和搜索）
@@ -62,6 +63,7 @@ def get_cards(
         refund_requested: 退款状态筛选
         is_used: 使用状态筛选
         is_sold: 售卖状态筛选
+        card_header: 卡头筛选
         exclude_deleted: 是否排除已删除的卡片
     
     返回:
@@ -105,6 +107,10 @@ def get_cards(
     # 售卖状态筛选
     if is_sold is not None:
         query = query.filter(models.Card.is_sold == is_sold)
+    
+    # 卡头筛选
+    if card_header:
+        query = query.filter(models.Card.card_header.contains(card_header))
 
     # 先计算筛选后的总数
     total = query.count()
@@ -159,6 +165,7 @@ def create_card(db: Session, card: schemas.CardCreate, is_external: bool = False
     db_card = models.Card(
         card_id=card.card_id,
         card_nickname=card.card_nickname,
+        card_header=card.card_header,
         card_limit=card.card_limit,
         validity_hours=card.validity_hours,
         exp_date=None,  # 不自己计算，等API返回
