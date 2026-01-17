@@ -67,8 +67,22 @@ def parse_card_line(line: str) -> Optional[Dict]:
                 "card_header": None
             }
 
-    # 方式3: 尝试从文本中提取卡密（可能有"卡密:"前缀）
-    # 支持 mio-UUID 和纯 UUID 格式
+    # 3. 尝试搜索特定后缀格式 (Mio, Cursor等)
+    # 支持 mio-UUID, 纯 UUID, 以及 Cursor 格式 (XXXX-...-Cursor)
+    # 优先匹配 Cursor 格式，防贪婪
+    cursor_pattern = r'(?:卡密:\s*)?([A-Za-z0-9-]+\-Cursor)\b'
+    match = re.search(cursor_pattern, line)
+    if match:
+        card_id = match.group(1).strip()
+        if validate_card_id(card_id):
+             return {
+                "card_id": card_id,
+                "card_limit": 0.0,
+                "validity_hours": 1,
+                "card_header": None
+            }
+            
+    # 原有的 UUID 匹配
     card_id_pattern = r'(?:卡密:\s*)?((?:mio-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
     match = re.search(card_id_pattern, line, re.IGNORECASE)
 
@@ -130,9 +144,25 @@ def validate_card_id(card_id: str) -> bool:
     if clean_id.startswith('mio-'):
         clean_id = clean_id[4:]
 
-    # 检查是否是 UUID 格式（带连字符）
+    # 1. 检查是否是 UUID 格式（带连字符）
     uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    return bool(re.match(uuid_pattern, clean_id))
+    if re.match(uuid_pattern, clean_id):
+        return True
+        
+    # 2. 检查由 HolyMasterCard 提供的格式，现在改为 -Cursor 后缀
+    # 示例: AWCC-9SW5-ZYVV-7XUY-AS5C-Cursor
+    if card_id.endswith('-Cursor'):
+        # 简单验证：只要由字母、数字、连字符组成，且长度合理
+        # 去掉 -Cursor 后应该有内容
+        prefix = card_id[:-7]
+        if not prefix:
+            return False
+            
+        # 检查是否只包含允许的字符 (A-Z, 0-9, -)
+        if re.match(r'^[A-Za-z0-9-]+$', prefix):
+            return True
+            
+    return False
 
 
 def format_card_info(card_data: Dict) -> str:

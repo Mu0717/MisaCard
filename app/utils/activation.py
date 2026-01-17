@@ -12,6 +12,7 @@ from ..config import (
     ACTIVATION_RETRY_DELAY
 )
 from .mercury import redeem_key
+from .holy import redeem_holy_key
 
 async def query_card_from_api(card_id: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
     """
@@ -46,9 +47,18 @@ async def activate_card_via_api(card_id: str, max_retries: int = None, retry_del
     """
     try:
         print(f"\n{'='*60}")
-        print(f"[激活卡片] 开始调用 Mercury API Redeem: {card_id}")
+        print(f"[激活卡片] 开始调用 API: {card_id}")
         
-        response_data = await redeem_key(card_id)
+        response_data = {}
+        
+        if card_id.endswith("-Cursor"):
+            # HolyMasterCard (Cursor suffix)
+            print(f"[激活卡片] 检测到 Cursor 标记，使用 Holy API")
+            response_data = await redeem_holy_key(card_id)
+        else:
+            # Default Mercury
+            print(f"[激活卡片] 使用默认 Mercury API")
+            response_data = await redeem_key(card_id)
         
         print(f"[激活卡片] 响应内容: {json.dumps(response_data, ensure_ascii=False, indent=2)}")
         print(f"{'='*60}\n")
@@ -144,15 +154,17 @@ def extract_card_info(api_response: Dict) -> Dict:
         # 尝试直接从根节点取（兼容旧结构或防御性编程）
         card_data = api_response
         
-    # 卡号 (pan)
-    info["card_number"] = card_data.get("pan") or card_data.get("card_number")
+    # 卡号 (pan / cardNumber)
+    info["card_number"] = card_data.get("pan") or card_data.get("card_number") or card_data.get("cardNumber")
     
-    # CVV
+    # CVV (cvv / card_cvc)
     info["card_cvc"] = card_data.get("cvv") or card_data.get("card_cvc")
     
     # 有效期格式化 (MM/YY)
-    exp_month = str(card_data.get("exp_month") or "")
-    exp_year = str(card_data.get("exp_year") or "")
+    # Mercury: exp_month, exp_year
+    # Holy: expiryMonth, expiryYear
+    exp_month = str(card_data.get("exp_month") or card_data.get("expiryMonth") or "")
+    exp_year = str(card_data.get("exp_year") or card_data.get("expiryYear") or "")
     
     if exp_month and exp_year:
         # 确保月份是两位
@@ -167,6 +179,7 @@ def extract_card_info(api_response: Dict) -> Dict:
         
     # 其他字段
     # 处理账单地址 (legal_address)
+    # Holy 可能没有返回 legal_address
     legal_addr = api_response.get("legal_address") or card_data.get("legal_address")
     if legal_addr and isinstance(legal_addr, dict):
         # 构建格式化地址字符串
@@ -181,10 +194,9 @@ def extract_card_info(api_response: Dict) -> Dict:
         # 保存原始地址信息供前端精确显示/复制
         info["legal_address"] = legal_addr
     else:
-        # Fallback or empty? User specifically asked for correct address.
-        # If API doesn't return it, maybe keep the old hardcoded one or leave empty.
-        # Let's keep the old one as fallback but maybe mark it?
-        # Or better yet, if missing, default to the known one to avoid breaking changes.
+        # Fallback or check if Holy provided address fields?
+        # User example for Holy didn't show address. 
+        # Default to the known one to avoid breaking changes.
         info["billing_address"] = "41 Glenn Rd C23, East Hartford, CT 06118"
         info["legal_address"] = {
             "address1": "41 Glenn Rd C23",
@@ -194,7 +206,7 @@ def extract_card_info(api_response: Dict) -> Dict:
             "country": "US"
         }
 
-    info["card_nickname"] = card_data.get("card_nickname") or f"Card {info['card_number'][-4:] if info['card_number'] else ''}"
+    info["card_nickname"] = card_data.get("card_nickname") or card_data.get("nickname") or f"Card {info.get('card_number', '')[-4:] if info.get('card_number') else ''}"
     info["card_limit"] = card_data.get("card_limit", 0)
     info["status"] = "已激活" if api_response.get("success") else "unknown"
     
@@ -205,7 +217,15 @@ def extract_card_info(api_response: Dict) -> Dict:
         if not time_str:
             return None
         try:
-             # 处理可能带有的 Z 后缀
+            # 处理整数时间戳 (Holy: scheduledDeleteAt, createdAt are timestamps?)
+            # User example: createdAt: "2026-01-15T08:27:56Z" (string)
+            # scheduledDeleteAt: 1768469276 (int)
+            if isinstance(time_str, (int, float)):
+                 dt = datetime.fromtimestamp(time_str, timezone.utc)
+                 dt_cst = dt.astimezone(china_tz)
+                 return dt_cst.isoformat()
+
+            # 处理可能带有的 Z 后缀
             if time_str.endswith('Z'):
                 time_str = time_str.replace('Z', '+00:00')
             
@@ -221,12 +241,13 @@ def extract_card_info(api_response: Dict) -> Dict:
             return dt_cst.isoformat()
         except Exception as e:
             print(f"时间转换出错 ({time_str}): {e}")
-            return time_str
+            return str(time_str)
 
     # 激活时间匹配逻辑:
     # 1. Query接口返回 used_time (在根节点)
     # 2. Redeem接口返回 created_time (在 card 节点)
-    raw_create_time = api_response.get("used_time") or card_data.get("created_time")
+    # Holy: createdAt (in card node)
+    raw_create_time = api_response.get("used_time") or card_data.get("created_time") or card_data.get("createdAt")
     info["create_time"] = convert_to_china_time(raw_create_time)
     
     # 计算 validity_hours
@@ -239,9 +260,15 @@ def extract_card_info(api_response: Dict) -> Dict:
     # 过期时间匹配逻辑:
     # 1. 优先使用 API 返回的 expire_time (两个接口都在 card 节点)
     # 2. 其次使用 delete_date
-    # 3. 最后尝试本地计算
+    # 3. Holy: scheduledDeleteAt (in card node) or expiresAt (in root)
+    # 4. 最后尝试本地计算
     
-    api_expire_time = card_data.get("expire_time") or card_data.get("delete_date")
+    api_expire_time = (
+        card_data.get("expire_time") or 
+        card_data.get("delete_date") or 
+        card_data.get("scheduledDeleteAt") or 
+        api_response.get("expiresAt")
+    )
     
     if api_expire_time:
          info["exp_date"] = convert_to_china_time(api_expire_time)
