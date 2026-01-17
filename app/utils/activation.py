@@ -194,17 +194,30 @@ def extract_card_info(api_response: Dict) -> Dict:
         # 保存原始地址信息供前端精确显示/复制
         info["legal_address"] = legal_addr
     else:
-        # Fallback or check if Holy provided address fields?
-        # User example for Holy didn't show address. 
-        # Default to the known one to avoid breaking changes.
-        info["billing_address"] = "41 Glenn Rd C23, East Hartford, CT 06118"
-        info["legal_address"] = {
-            "address1": "41 Glenn Rd C23",
-            "city": "East Hartford",
-            "region": "CT",
-            "postal_code": "06118",
-            "country": "US"
-        }
+        # 如果没有返回地址，需要区分是 Holy 还是 Mercury 的 Fallback
+        # Holy 特征: card 对象中有 cardNumber (camelCase) 或 root 有 activationToken
+        is_holy = "cardNumber" in card_data or "activationToken" in api_response
+        
+        if is_holy:
+            # Holy 卡密默认地址 (Spain)
+            info["billing_address"] = "120 Avenida Martínez Campos, Alcantarilla, MC, 30820, Spain"
+            info["legal_address"] = {
+                "address1": "120 Avenida Martínez Campos",
+                "city": "Alcantarilla",
+                "region": "MC",
+                "postal_code": "30820",
+                "country": "Spain"
+            }
+        else:
+            # Mercury 默认地址 (US)
+            info["billing_address"] = "41 Glenn Rd C23, East Hartford, CT 06118"
+            info["legal_address"] = {
+                "address1": "41 Glenn Rd C23",
+                "city": "East Hartford",
+                "region": "CT",
+                "postal_code": "06118",
+                "country": "US"
+            }
 
     info["card_nickname"] = card_data.get("card_nickname") or card_data.get("nickname") or f"Card {info.get('card_number', '')[-4:] if info.get('card_number') else ''}"
     info["card_limit"] = card_data.get("card_limit", 0)
