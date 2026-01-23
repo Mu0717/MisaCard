@@ -2,6 +2,7 @@
 import httpx
 import re
 from typing import Dict, Any, Optional
+from datetime import datetime, timedelta
 
 VOCARD_API_URL = "https://vocard.store/user/api/order/trade"
 VOCARD_BILLING_ADDRESS = {
@@ -38,7 +39,7 @@ async def redeem_vocard_key(coupon: str) -> Dict[str, Any]:
     print(f"[Vocard] 开始激活: {coupon}")
     
     headers = {
-        "Cookie": "USER_SESSION=ZXlKMGVYQWlPaUpLVjFRaUxDSjFhV1FpT2pFeE9UVXNJbUZzWnlJNklraFRNalUySW4wLmV5SmxlSEJwY21VaU9qRTRNREF3TURBM016WXNJbXh2WjJsdVZHbHRaU0k2SWpJd01qWXRNREV0TVRVZ01UWTZNVEk2TVRZaWZRLndOcjU3UFFWRVFaRF9pbzhSVURKWk9rY0c4aGZVZkdZMno1dS1keUpzbEE%3D; ACG-SHOP=gase7jcmokft2o19db5l0pmduj",
+        "Cookie": "ACG-SHOP=b43gbd1h5f38iio07tq9pugac7; USER_SESSION=ZXlKMGVYQWlPaUpLVjFRaUxDSjFhV1FpT2pFeE9UVXNJbUZzWnlJNklraFRNalUySW4wLmV5SmxlSEJwY21VaU9qRTRNREEzTVRjNE9UZ3NJbXh2WjJsdVZHbHRaU0k2SWpJd01qWXRNREV0TWpNZ01qTTZNalE2TlRnaWZRLjFsZVdwaHcyQVZMQktyeW96WDVKbFBmRjRsMEpjWE5XOWdRMjZYb253QUk%3D",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
@@ -82,6 +83,7 @@ async def redeem_vocard_key(coupon: str) -> Dict[str, Any]:
                         "cvv": parsed_card["cvc"],
                         "exp_month": parsed_card["exp_month"],
                         "exp_year": parsed_card["exp_year"],
+                        "expire_time": (datetime.now() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S"),
                         # 注入固定账单地址
                         "legal_address": VOCARD_BILLING_ADDRESS,
                         "billing_address_full": VOCARD_BILLING_ADDRESS["full"],
