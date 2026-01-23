@@ -13,6 +13,7 @@ from ..config import (
 )
 from .mercury import redeem_key
 from .holy import redeem_holy_key
+from .vocard import redeem_vocard_key
 
 async def query_card_from_api(card_id: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
     """
@@ -55,6 +56,10 @@ async def activate_card_via_api(card_id: str, max_retries: int = None, retry_del
             # HolyMasterCard (Cursor suffix)
             print(f"[激活卡片] 检测到 Cursor 标记，使用 Holy API")
             response_data = await redeem_holy_key(card_id)
+        elif card_id.startswith("LR-"):
+            # Vocard
+            print(f"[激活卡片] 检测到 LR- 前缀，使用 Vocard API")
+            response_data = await redeem_vocard_key(card_id)
         else:
             # Default Mercury
             print(f"[激活卡片] 使用默认 Mercury API")
