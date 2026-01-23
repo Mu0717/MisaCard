@@ -182,10 +182,16 @@ async def batch_activate_cards(
                         crud.create_activation_log(db, card_id, "failed", error_message=message)
                     
                     # 检查是否需要重试
-                    if retry_count < card_ids.max_retries:
+                    # 如果错误信息表明卡密无效或已使用，不再重试
+                    stop_keywords = ["已失效", "已使用", "already used", "invalid", "not found", "不存在", "已激活", "activated"]
+                    should_stop = any(kw in str(message) for kw in stop_keywords)
+
+                    if not should_stop and retry_count < card_ids.max_retries:
                         print(f"[批量激活] ⚠️  失败，将重试: {card_id}")
                         await asyncio.sleep(1)  # 延迟后重试
                         return await activate_single_card(card_id, retry_count + 1)
+                    elif should_stop:
+                        print(f"[批量激活] 🛑 致命错误(不重试): {card_id} - {message}")
                     else:
                         result = {
                             "card_id": card_id,
@@ -292,7 +298,12 @@ async def batch_activate_cards(
                     "message": message,
                     "retry_count": retry_count,
                     "status": "已激活",
-                    "billing_address": card_info.get("billing_address")
+                    "billing_address": card_info.get("billing_address"),
+                    "card_number": card_info.get("card_number"),
+                    "card_cvc": card_info.get("card_cvc"),
+                    "card_exp_date": card_info.get("card_exp_date"),
+                    "exp_date": card_info.get("exp_date"),
+                    "card_limit": card_info.get("card_limit")
                 }
                 results["success"].append(result)
                 results["success_count"] += 1
@@ -467,6 +478,17 @@ async def query_card(
     db_card = crud.get_card_by_id(db, card_id)
     if not db_card:
         raise HTTPException(status_code=404, detail="卡片不存在于本地数据库")
+
+    # 针对 Vocard (LR-) 卡片的特殊处理
+    # Vocard 是一次性激活，API 不支持查询（再次请求会提示失效）
+    # 所以如果本地已经激活，直接返回本地数据，视为查询成功
+    if card_id.upper().startswith("LR-") and db_card.is_activated:
+        print(f"[查询卡片] LR-卡片已激活，跳过远程查询，直接返回本地数据: {card_id}")
+        return {
+            "success": True,
+            "message": "查询成功 (本地缓存)",
+            "card_data": db_card
+        }
 
     # 从API查询卡片信息
     success, card_data, error = await query_card_from_api(card_id)

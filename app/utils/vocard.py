@@ -2,7 +2,7 @@
 import httpx
 import re
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 VOCARD_API_URL = "https://vocard.store/user/api/order/trade"
 VOCARD_BILLING_ADDRESS = {
@@ -83,7 +83,8 @@ async def redeem_vocard_key(coupon: str) -> Dict[str, Any]:
                         "cvv": parsed_card["cvc"],
                         "exp_month": parsed_card["exp_month"],
                         "exp_year": parsed_card["exp_year"],
-                        "expire_time": (datetime.now() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S"),
+                        # 使用 UTC 时间 + 1小时，activation.py 会将其解析为 UTC 并转换为 CST (+8)，最终结果为 CST + 1小时
+                        "expire_time": (datetime.now(timezone.utc) + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S"),
                         # 注入固定账单地址
                         "legal_address": VOCARD_BILLING_ADDRESS,
                         "billing_address_full": VOCARD_BILLING_ADDRESS["full"],

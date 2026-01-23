@@ -56,7 +56,7 @@ async def activate_card_via_api(card_id: str, max_retries: int = None, retry_del
             # HolyMasterCard (Cursor suffix)
             print(f"[激活卡片] 检测到 Cursor 标记，使用 Holy API")
             response_data = await redeem_holy_key(card_id)
-        elif card_id.startswith("LR-"):
+        elif card_id.upper().startswith("LR-"):
             # Vocard
             print(f"[激活卡片] 检测到 LR- 前缀，使用 Vocard API")
             response_data = await redeem_vocard_key(card_id)
