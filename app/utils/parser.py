@@ -4,6 +4,7 @@ txt 文件解析器
 1. 卡密:01013bd7-f16b-44ad-a806-c4d61ea6a9fc 额度:0 有效期:1小时 卡头:5236xx
 2. 卡密: mio-f3dc27e4-e853-429a-9e4b-3294af7c25ca 额度: 1 有效期: 1小时
 3. 纯卡密格式: mio-xxx 或 uuid
+4. 新格式: 卡密:LR-890DA88EC1F3 额度:0 有效期:1小时 卡头:4462
 """
 import re
 from typing import List, Dict, Optional
@@ -16,7 +17,9 @@ def parse_card_line(line: str) -> Optional[Dict]:
     支持多种格式：
     1. 带卡头格式：卡密:xxx 额度:x 有效期:x小时 卡头:xxx
     2. 完整格式：卡密: mio-xxx 额度: 1 有效期: 1小时
-    3. 仅卡密：mio-xxx (使用默认额度0和有效期1小时)
+    2. 完整格式：卡密: mio-xxx 额度: 1 有效期: 1小时
+    3. LR格式：卡密:LR-xxx 额度:0 有效期:1小时 卡头:xxx
+    4. 仅卡密：mio-xxx (使用默认额度0和有效期1小时)
 
     Args:
         line: 包含卡片信息的文本行
@@ -149,7 +152,7 @@ def validate_card_id(card_id: str) -> bool:
     if re.match(uuid_pattern, clean_id):
         return True
         
-    # 2. 检查由 HolyMasterCard 提供的格式，现在改为 -Cursor 后缀
+    # 3. 检查由 HolyMasterCard 提供的格式，现在改为 -Cursor 后缀
     # 示例: AWCC-9SW5-ZYVV-7XUY-AS5C-Cursor
     if card_id.endswith('-Cursor'):
         # 简单验证：只要由字母、数字、连字符组成，且长度合理
@@ -161,7 +164,14 @@ def validate_card_id(card_id: str) -> bool:
         # 检查是否只包含允许的字符 (A-Z, 0-9, -)
         if re.match(r'^[A-Za-z0-9-]+$', prefix):
             return True
-            
+
+    # 4. 检查 LR- 开头的格式
+    # 示例: LR-890DA88EC1F3
+    if card_id.startswith('LR-'):
+        # 简单验证：LR- 后跟字母和数字
+        if re.match(r'^LR-[A-Z0-9]+$', card_id):
+            return True
+
     return False
 
 
