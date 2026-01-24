@@ -14,6 +14,15 @@ VOCARD_BILLING_ADDRESS = {
     "full": "Unit 3 , Enterprise House 260 Chorley New Road, Horwich, Bolton, England, BL6 5NY"
 }
 
+VOCARD_BILLING_ADDRESS_USA = {
+    "address1": "1255 Woodland Shores",
+    "city": "Osage Beach",
+    "region": "MO",
+    "postal_code": "65065",
+    "country": "US",
+    "full": "1255 Woodland Shores, Osage Beach, MO, 65065, United States"
+}
+
 async def redeem_vocard_key(coupon: str) -> Dict[str, Any]:
     """
     Activate/Trade Vocard coupon for card details.
@@ -24,14 +33,24 @@ async def redeem_vocard_key(coupon: str) -> Dict[str, Any]:
     Returns:
         Dict containing activation result and card details normalized for the system.
     """
+    # 处理特殊后缀逻辑
+    item_id = "59"
+    final_coupon = coupon
+    current_billing_address = VOCARD_BILLING_ADDRESS
+    
+    if coupon.endswith("-USA"):
+        item_id = "61"
+        final_coupon = coupon[:-4]  # 去掉 -USA 后缀
+        current_billing_address = VOCARD_BILLING_ADDRESS_USA
+
     # 默认参数
     data = {
         "contact": "",
         "password": "",
-        "coupon": coupon,
+        "coupon": final_coupon,
         "captcha": "",
         "num": "1",
-        "item_id": "59",
+        "item_id": item_id,
         "pay_id": "1",
         "device": "0"
     }
@@ -39,7 +58,7 @@ async def redeem_vocard_key(coupon: str) -> Dict[str, Any]:
     print(f"[Vocard] 开始激活: {coupon}")
     
     headers = {
-        "Cookie": "ACG-SHOP=b43gbd1h5f38iio07tq9pugac7; USER_SESSION=ZXlKMGVYQWlPaUpLVjFRaUxDSjFhV1FpT2pFeE9UVXNJbUZzWnlJNklraFRNalUySW4wLmV5SmxlSEJwY21VaU9qRTRNREEzTVRjNE9UZ3NJbXh2WjJsdVZHbHRaU0k2SWpJd01qWXRNREV0TWpNZ01qTTZNalE2TlRnaWZRLjFsZVdwaHcyQVZMQktyeW96WDVKbFBmRjRsMEpjWE5XOWdRMjZYb253QUk%3D",
+        "Cookie": "ACG-SHOP=gase7jcmokft2o19db5l0pmduj; USER_SESSION=ZXlKMGVYQWlPaUpLVjFRaUxDSjFhV1FpT2pFeE9UVXNJbUZzWnlJNklraFRNalUySW4wLmV5SmxlSEJwY21VaU9qRTNOekU0TURnd05EUXNJbXh2WjJsdVZHbHRaU0k2SWpJd01qWXRNREV0TWpRZ01EZzZOVFE2TURRaWZRLmx5VXp5YUhYaTI5SWJnMnlnQ3ZIMi1INlV0bzIyOHhDMFY4aWdyNW5jd2c%3D",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
@@ -86,8 +105,8 @@ async def redeem_vocard_key(coupon: str) -> Dict[str, Any]:
                         # 使用 UTC 时间 + 1小时，activation.py 会将其解析为 UTC 并转换为 CST (+8)，最终结果为 CST + 1小时
                         "expire_time": (datetime.now(timezone.utc) + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S"),
                         # 注入固定账单地址
-                        "legal_address": VOCARD_BILLING_ADDRESS,
-                        "billing_address_full": VOCARD_BILLING_ADDRESS["full"],
+                        "legal_address": current_billing_address,
+                        "billing_address_full": current_billing_address["full"],
                         # 其他元数据
                         "trade_no": api_data.get("tradeNo"),
                         "stock": api_data.get("stock")
