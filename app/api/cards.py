@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import asyncio
+import httpx
 
 from .. import crud, schemas, models
 from ..database import get_db
@@ -839,3 +840,51 @@ async def query_cards_by_limit(
             "cards": card_list
         }
     }
+
+
+@router.get("/emails/list", response_model=schemas.APIResponse)
+async def get_email_verification_codes():
+    """
+    获取验证码邮件列表 (代理请求)
+    """
+    url = "https://email01.chatgptcard.xyz/api/emails"
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            }
+            response = await client.get(url, headers=headers, timeout=15.0)
+            
+            if response.status_code != 200:
+                print(f"[邮件查询] API返回错误: {response.status_code} - {response.text}")
+                return {
+                    "success": False,
+                    "message": f"获取邮件失败: {response.status_code}",
+                    "data": {"error": response.text}
+                }
+            
+            try:
+                raw_data = response.json()
+            except:
+                raw_data = response.text
+                
+            # 兼容 APIResponse model (data expects dict)
+            if isinstance(raw_data, list):
+                data = {"items": raw_data}
+            elif isinstance(raw_data, dict):
+                data = raw_data
+            else:
+                data = {"content": raw_data}
+
+            return {
+                "success": True,
+                "message": "获取邮件成功",
+                "data": data
+            }
+    except Exception as e:
+        print(f"[邮件查询] 请求异常: {str(e)}")
+        return {
+            "success": False,
+            "message": f"请求异常: {str(e)}",
+            "data": {"error": str(e)}
+        }
