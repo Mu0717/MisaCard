@@ -4,7 +4,8 @@ txt 文件解析器
 1. 卡密:01013bd7-f16b-44ad-a806-c4d61ea6a9fc 额度:0 有效期:1小时 卡头:5236xx
 2. 卡密: mio-f3dc27e4-e853-429a-9e4b-3294af7c25ca 额度: 1 有效期: 1小时
 3. 纯卡密格式: mio-xxx 或 uuid
-4. 新格式: 卡密:LR-890DA88EC1F3 额度:0 有效期:1小时 卡头:4462
+4. LR格式: 卡密:LR-890DA88EC1F3 额度:0 有效期:1小时 卡头:4462
+5. 新LR格式: 卡密:LR-F8E6FF0D7146-USA 额度:0 有效期:1小时 卡头:4866
 """
 import re
 from typing import List, Dict, Optional
@@ -166,10 +167,10 @@ def validate_card_id(card_id: str) -> bool:
             return True
 
     # 4. 检查 LR- 开头的格式
-    # 示例: LR-890DA88EC1F3
+    # 示例: LR-890DA88EC1F3 或 LR-F8E6FF0D7146-USA
     if card_id.startswith('LR-'):
-        # 简单验证：LR- 后跟字母和数字
-        if re.match(r'^LR-[A-Z0-9]+$', card_id):
+        # 简单验证：LR- 后跟字母、数字和连字符
+        if re.match(r'^LR-[A-Z0-9-]+$', card_id):
             return True
 
     return False

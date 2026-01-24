@@ -32,6 +32,7 @@ async def import_from_text(
     1. 卡密:xxx 额度:x 有效期:x小时 卡头:xxx（卡头可选）
     2. 卡密: mio-xxx 额度: x 有效期: x小时
     3. 卡密:LR-890DA88EC1F3 额度:0 有效期:1小时 卡头:4462
+    4. 卡密:LR-F8E6FF0D7146-USA 额度:0 有效期:1小时 卡头:4866
     """
     text_content = request.content.strip()
 
