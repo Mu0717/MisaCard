@@ -45,7 +45,7 @@ async def redeem_vocard_key(coupon: str) -> Dict[str, Any]:
 
     # 默认参数
     data = {
-        "contact": "",
+        "contact": "shaohua0717@gmail.com",
         "password": "",
         "coupon": final_coupon,
         "captcha": "",
@@ -58,7 +58,7 @@ async def redeem_vocard_key(coupon: str) -> Dict[str, Any]:
     print(f"[Vocard] 开始激活: {coupon}")
     
     headers = {
-        "Cookie": "ACG-SHOP=gase7jcmokft2o19db5l0pmduj; USER_SESSION=ZXlKMGVYQWlPaUpLVjFRaUxDSjFhV1FpT2pFeE9UVXNJbUZzWnlJNklraFRNalUySW4wLmV5SmxlSEJwY21VaU9qRTNOekU0TURnd05EUXNJbXh2WjJsdVZHbHRaU0k2SWpJd01qWXRNREV0TWpRZ01EZzZOVFE2TURRaWZRLmx5VXp5YUhYaTI5SWJnMnlnQ3ZIMi1INlV0bzIyOHhDMFY4aWdyNW5jd2c%3D",
+        # "Cookie": "ACG-SHOP=gase7jcmokft2o19db5l0pmduj; USER_SESSION=ZXlKMGVYQWlPaUpLVjFRaUxDSjFhV1FpT2pFeE9UVXNJbUZzWnlJNklraFRNalUySW4wLmV5SmxlSEJwY21VaU9qRTNOekU0TURnd05EUXNJbXh2WjJsdVZHbHRaU0k2SWpJd01qWXRNREV0TWpRZ01EZzZOVFE2TURRaWZRLmx5VXp5YUhYaTI5SWJnMnlnQ3ZIMi1INlV0bzIyOHhDMFY4aWdyNW5jd2c%3D",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
