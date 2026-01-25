@@ -1,8 +1,8 @@
 import httpx
 from typing import Dict, Any, Optional
 
-MERCURY_REDEEM_URL = "https://mercury.wxie.de/api/keys/redeem"
-MERCURY_QUERY_URL = "https://mercury.wxie.de/api/keys/query"
+MERCURY_REDEEM_URL = "https://actcard.xyz/api/keys/redeem"
+MERCURY_QUERY_URL = "https://actcard.xyz/api/keys/query"
 
 async def redeem_key(key_id: str) -> Dict[str, Any]:
     """
@@ -19,10 +19,10 @@ async def redeem_key(key_id: str) -> Dict[str, Any]:
         "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
         "cache-control": "no-cache",
         "content-type": "application/json",
-        "origin": "https://mercury.wxie.de",
+        "origin": "https://actcard.xyz",
         "pragma": "no-cache",
         "priority": "u=1, i",
-        "referer": "https://mercury.wxie.de/redeem",
+        "referer": "https://actcard.xyz/redeem",
         "sec-ch-ua": '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
