@@ -52,16 +52,25 @@ async def activate_card_via_api(card_id: str, max_retries: int = None, retry_del
         
         response_data = {}
         
-        if card_id.endswith("-Cursor"):
-            # HolyMasterCard (Cursor suffix)
-            print(f"[激活卡片] 检测到 Cursor 标记，使用 Holy API")
+        # 路由逻辑优化
+        # 1. 明确的 Holy 特征
+        if card_id.endswith("-Cursor") or card_id.startswith(("EWCC-", "AWCC-", "UWCC-")):
+            print(f"[激活卡片] 检测到 Holy 特征 (前缀/后缀)，使用 Holy API")
             response_data = await redeem_holy_key(card_id)
+            
+        # 2. Vocard 特征
         elif card_id.upper().startswith("LR-"):
-            # Vocard
             print(f"[激活卡片] 检测到 LR- 前缀，使用 Vocard API")
             response_data = await redeem_vocard_key(card_id)
+            
+        # 3. 隐式 Holy 特征 (非 UUID，包含连字符)
+        # Mercury 通常是标准 UUID (8-4-4-4-12)，如果不是 UUID 但有连字符，可能是 Holy 的其他格式
+        elif "-" in card_id and not (len(card_id) == 36 and card_id.count("-") == 4):
+            print(f"[激活卡片] 检测到非 UUID 连字符格式，尝试使用 Holy API")
+            response_data = await redeem_holy_key(card_id)
+            
+        # 4. 默认 Mercury (通常是 UUID)
         else:
-            # Default Mercury
             print(f"[激活卡片] 使用默认 Mercury API")
             response_data = await redeem_key(card_id)
         

@@ -15,7 +15,13 @@ async def redeem_holy_key(license_key: str) -> Dict[str, Any]:
     """
     # 确保去除可能残留的后缀
     # 旧规则兼容 -Holy，新规则 -Cursor
-    real_key = license_key.replace("-Cursor", "").replace("-Holy", "")
+    # 兼容包含额外信息的格式 (例如: "KEY 额度:0 ...")
+    if " " in license_key:
+        license_key = license_key.split()[0]
+
+    # 确保去除可能残留的后缀
+    # 旧规则兼容 -Holy，新规则 -Cursor，以及特殊后缀 -44622, -4866
+    real_key = license_key.replace("-Cursor", "").replace("-Holy", "").replace("-44622", "").replace("-4866", "")
     
     headers = {
         "Content-Type": "application/json",

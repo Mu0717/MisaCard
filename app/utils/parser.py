@@ -34,8 +34,8 @@ def parse_card_line(line: str) -> Optional[Dict]:
         return None
 
     # 方式1: 尝试匹配带卡头的格式：卡密:xxx 额度:xxx 有效期:xxx小时 卡头:xxx
-    # 注意：冒号后可能没有空格
-    full_with_header_pattern = r'卡密:\s*([^\s]+)\s+额度:\s*(\d+(?:\.\d+)?)\s+有效期:\s*(\d+)\s*小时\s+卡头:\s*([^\s]+)'
+    # 注意：冒号后可能没有空格，"卡密:" 前缀现在是可选的
+    full_with_header_pattern = r'(?:卡密:\s*)?([^\s]+)\s+额度:\s*(\d+(?:\.\d+)?)\s+有效期:\s*(\d+)\s*小时\s+卡头:\s*([^\s]+)'
     match = re.search(full_with_header_pattern, line)
 
     if match:
@@ -54,7 +54,7 @@ def parse_card_line(line: str) -> Optional[Dict]:
             }
 
     # 方式2: 尝试匹配不带卡头的完整格式：卡密: xxx 额度: xxx 有效期: xxx小时
-    full_pattern = r'卡密:\s*([^\s]+)\s+额度:\s*(\d+(?:\.\d+)?)\s+有效期:\s*(\d+)\s*小时'
+    full_pattern = r'(?:卡密:\s*)?([^\s]+)\s+额度:\s*(\d+(?:\.\d+)?)\s+有效期:\s*(\d+)\s*小时'
     match = re.search(full_pattern, line)
 
     if match:
@@ -172,6 +172,11 @@ def validate_card_id(card_id: str) -> bool:
         # 简单验证：LR- 后跟字母、数字和连字符
         if re.match(r'^LR-[A-Z0-9-]+$', card_id):
             return True
+
+    # 5. 兼容通用的大写字母+数字+连字符格式 (如 EWCC-3SJQ-BD98-GKXJ-VMLZ-44622)
+    # 要求：全大写或数字，含连字符，长度>=20，避免匹配到普通单词
+    if re.match(r'^[A-Z0-9]+(-[A-Z0-9]+)+$', card_id) and len(card_id) >= 20:
+        return True
 
     return False
 
