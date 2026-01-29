@@ -23,6 +23,15 @@ VOCARD_BILLING_ADDRESS_USA = {
     "full": "1255 Woodland Shores, Osage Beach, MO, 65065, United States"
 }
 
+VOCARD_BILLING_ADDRESS_CDK = {
+    "address1": "107 Claymoor, Flora Street",
+    "city": "Oldham",
+    "region": "England",
+    "postal_code": "OL1 2XG",
+    "country": "UK",
+    "full": "107 Claymoor, Flora Street, Oldham, England, OL1 2XG, UK"
+}
+
 async def redeem_vocard_key(coupon: str) -> Dict[str, Any]:
     """
     Activate/Trade Vocard coupon for card details.
@@ -33,6 +42,10 @@ async def redeem_vocard_key(coupon: str) -> Dict[str, Any]:
     Returns:
         Dict containing activation result and card details normalized for the system.
     """
+    # 兼容新的 CDK 格式激活接口
+    if coupon.startswith("CDK-"):
+        return await _redeem_vocard_new(coupon)
+
     # 处理特殊后缀逻辑
     item_id = "59"
     final_coupon = coupon
@@ -179,3 +192,161 @@ def _parse_vocard_secret(secret: str) -> Optional[Dict[str, str]]:
         "exp_month": exp_month,
         "exp_year": exp_year
     }
+
+async def _redeem_vocard_new(coupon: str) -> Dict[str, Any]:
+    """
+    Handle activation for new CDK format coupons.
+    API: https://vocard.store/api/redeem
+    Requires CSRF token handling.
+    If redeem fails with "already used", fallback to query API.
+    """
+    base_url = "https://vocard.store"
+    redeem_url = "https://vocard.store/api/redeem"
+    
+    print(f"[Vocard] 开始激活 (New API): {coupon}")
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": base_url,
+        "Referer": f"{base_url}/"
+    }
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            # 1. 访问首页获取 CSRF Token (Cookies)
+            print("[Vocard] 正在获取 CSRF Token...")
+            try:
+                page_resp = await client.get(base_url, headers=headers)
+                csrf_token = client.cookies.get("csrf_token")
+                
+                if csrf_token:
+                    print(f"[Vocard] 获取到 CSRF Token: {csrf_token}")
+                    headers["x-csrf-token"] = csrf_token
+            except Exception as e:
+                print(f"[Vocard] 获取CSRF Token警告: {e}")
+
+            # 2. 发起激活请求
+            payload = {"code": coupon}
+            response = await client.post(redeem_url, json=payload, headers=headers)
+            print(f"[Vocard] API响应 ({response.status_code}): {response.text}")
+
+            try:
+                resp_json = response.json()
+            except Exception:
+                return {
+                    "success": False, 
+                    "error": f"API响应解析失败 (Status {response.status_code}): {response.text[:100]}",
+                    "raw_response": response.text
+                }
+            
+            # 3. 逻辑判断与降级查询
+            is_success = resp_json.get("success") is True
+            
+            if not is_success:
+                error_msg = resp_json.get("error") or resp_json.get("message") or resp_json.get("msg") or ""
+                # 如果提示已使用，尝试查询详情
+                if "已使用" in str(error_msg) or "used" in str(error_msg).lower():
+                    print(f"[Vocard] 卡密已使用，尝试查询详情: {coupon}")
+                    query_url = f"{base_url}/api/cards/query/{coupon}"
+                    try:
+                        query_resp = await client.get(query_url, headers=headers)
+                        print(f"[Vocard] 查询响应 ({query_resp.status_code}): {query_resp.text}")
+                        query_json = query_resp.json()
+                        if query_json.get("success") is True:
+                            print("[Vocard] 查询成功，使用查询结果")
+                            resp_json = query_json
+                            is_success = True
+                    except Exception as ex:
+                        print(f"[Vocard] 查询异常: {ex}")
+
+            if is_success:
+                data = resp_json.get("data", {})
+                
+                # Address handling
+                usage_instructions = data.get("usageInstructions", "")
+                address_info = _parse_cdk_address(usage_instructions)
+                if not address_info:
+                    address_info = VOCARD_BILLING_ADDRESS_CDK
+
+                # Expiry handling
+                # autoCancelAt: "2026-01-29T10:10:27.996Z" -> need "YYYY-MM-DD HH:MM:SS"
+                auto_cancel = data.get("autoCancelAt")
+                expire_time_str = ""
+                if auto_cancel and "T" in auto_cancel:
+                    # Remove Z, replace T with space, take up to seconds
+                    expire_time_str = auto_cancel.replace("T", " ").replace("Z", "").split(".")[0]
+                else:
+                    # Default +1 hour
+                    expire_time_str = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+
+                return {
+                    "success": True,
+                    "card": {
+                        "pan": data.get("cardNumber"),
+                        "cvv": data.get("cvv"),
+                        "exp_month": str(data.get("expiryMonth", "")).zfill(2),
+                        "exp_year": str(data.get("expiryYear", "")),
+                        "expire_time": expire_time_str,
+                        "legal_address": address_info,
+                        "billing_address_full": address_info["full"],
+                        "trade_no": str(data.get("cardId", "")),
+                        "stock": "1"
+                    },
+                    "vocard_original": data
+                }
+            else:
+                 return {
+                    "success": False,
+                    "error": resp_json.get("message") or resp_json.get("error", "激活失败"),
+                    "code": resp_json.get("code")
+                }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"请求异常: {str(e)}"
+        }
+
+def _parse_cdk_address(text: str) -> Optional[Dict[str, str]]:
+    """
+    Parse address from usage instructions.
+    Example: ... 卡片地址\n街道 107 Claymoor, Flora Street, 城市 Oldham, State England, 邮编 OL1 2XG, 英国
+    """
+    if not text:
+        return None
+        
+    try:
+        # Simple regex based on markers
+        street_match = re.search(r'街道\s+(.*?),\s*城市', text)
+        city_match = re.search(r'城市\s+(.*?),\s*State', text)
+        state_match = re.search(r'State\s+(.*?),\s*邮编', text)
+        zip_match = re.search(r'邮编\s+(.*?),\s*(.*)$', text, re.MULTILINE)
+        
+        if street_match and city_match:
+            street = street_match.group(1).strip()
+            city = city_match.group(1).strip()
+            region = state_match.group(1).strip() if state_match else ""
+            postal_code = ""
+            country = "UK" # Default
+            
+            # Zip and Country might be mixed at end
+            if zip_match:
+                postal_code = zip_match.group(1).strip()
+                last_part = zip_match.group(2).strip()
+                if last_part:
+                     country = last_part
+
+            full = f"{street}, {city}, {region}, {postal_code}, {country}"
+            
+            return {
+                "address1": street,
+                "city": city,
+                "region": region,
+                "postal_code": postal_code,
+                "country": country,
+                "full": full
+            }
+    except Exception:
+        pass
+        
+    return None

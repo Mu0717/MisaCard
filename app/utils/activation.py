@@ -59,8 +59,8 @@ async def activate_card_via_api(card_id: str, max_retries: int = None, retry_del
             response_data = await redeem_holy_key(card_id)
             
         # 2. Vocard 特征
-        elif card_id.upper().startswith("LR-"):
-            print(f"[激活卡片] 检测到 LR- 前缀，使用 Vocard API")
+        elif card_id.upper().startswith(("LR-", "CDK-")):
+            print(f"[激活卡片] 检测到 Vocard 特征 (LR-/CDK-)，使用 Vocard API")
             response_data = await redeem_vocard_key(card_id)
             
         # 3. 隐式 Holy 特征 (非 UUID，包含连字符)

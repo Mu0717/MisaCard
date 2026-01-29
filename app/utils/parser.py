@@ -86,6 +86,22 @@ def parse_card_line(line: str) -> Optional[Dict]:
                 "card_header": None
             }
             
+    # 4. 尝试匹配 CDK 格式
+    # 示例: CDK-PB7RL-HQSR4-7P4SE-5A53F-4BQGN
+    # 匹配 CDK- 后面跟一系列大写字母数字组合
+    cdk_pattern = r'(?:卡密:\s*)?(CDK-[A-Z0-9]+(?:-[A-Z0-9]+)+)'
+    match = re.search(cdk_pattern, line)
+    if match:
+        card_id = match.group(1).strip()
+        # 简单长度过滤避免过短匹配
+        if len(card_id) > 10 and validate_card_id(card_id):
+             return {
+                "card_id": card_id,
+                "card_limit": 0.0,
+                "validity_hours": 1,
+                "card_header": None
+            }
+
     # 原有的 UUID 匹配
     card_id_pattern = r'(?:卡密:\s*)?((?:mio-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
     match = re.search(card_id_pattern, line, re.IGNORECASE)
@@ -166,7 +182,14 @@ def validate_card_id(card_id: str) -> bool:
         if re.match(r'^[A-Za-z0-9-]+$', prefix):
             return True
 
-    # 4. 检查 LR- 开头的格式
+    # 4. 检查 CDK- 开头的格式
+    # 示例: CDK-PB7RL-HQSR4-7P4SE-5A53F-4BQGN
+    if card_id.startswith('CDK-'):
+        # 简单验证：CDK- 后跟字母、数字和连字符，长度通常较长
+        if re.match(r'^CDK-[A-Z0-9-]+$', card_id):
+            return True
+
+    # 5. 检查 LR- 开头的格式
     # 示例: LR-890DA88EC1F3 或 LR-F8E6FF0D7146-USA
     if card_id.startswith('LR-'):
         # 简单验证：LR- 后跟字母、数字和连字符
