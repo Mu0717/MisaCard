@@ -350,3 +350,62 @@ def _parse_cdk_address(text: str) -> Optional[Dict[str, str]]:
         pass
         
     return None
+
+async def verify_3ds_code(last_four: str) -> Dict[str, Any]:
+    """
+    Check 3DS verification code for a card.
+    API: https://vocard.store/api/3ds/verify
+    POST {"lastFour": "9598"}
+    """
+    url = "https://vocard.store/api/3ds/verify"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://vocard.store/",
+        "Origin": "https://vocard.store",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "lastFour": last_four
+    }
+    
+    print(f"[Vocard] Checking 3DS code for last 4: {last_four}")
+    
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+            # First ensure we have a session/CSRF token if needed, 
+            # effectively just making the request might work if API is public or handles it.
+            # But based on user log, it has csrf_token.
+            # Let's try to get CSRF token first similar to _redeem_vocard_new if simple request fails?
+            # Actually, let's try to get CSRF first to be safe, as the user provided log shows X-CSRF-Token.
+            
+            # 1. Visit home to get CSRF
+            try:
+                await client.get("https://vocard.store/", headers=headers)
+                csrf_token = client.cookies.get("csrf_token")
+                if csrf_token:
+                    headers["x-csrf-token"] = csrf_token
+                    # Update cookie in headers if needed, but client session holds it.
+            except Exception as e:
+                print(f"[Vocard] Warning fetching CSRF for 3ds: {e}")
+
+            response = await client.post(url, json=payload, headers=headers)
+            print(f"[Vocard] 3DS Response: {response.text}")
+            
+            status = response.status_code
+            if status != 200:
+                return {
+                    "success": False,
+                    "error": f"HTTP {status}"
+                }
+                
+            return response.json()
+            
+    except Exception as e:
+        print(f"[Vocard] 3DS Verify Error: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+

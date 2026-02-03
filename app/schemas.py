@@ -121,3 +121,9 @@ class CardListResponse(BaseModel):
     skip: int
     limit: int
 
+
+class VocardVerifyRequest(BaseModel):
+    """Vocard 验证码查询请求"""
+    lastFour: str = Field(..., description="卡号后四位")
+
+

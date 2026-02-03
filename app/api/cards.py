@@ -11,6 +11,7 @@ from .. import crud, schemas, models
 from ..database import get_db
 from ..utils.activation import auto_activate_if_needed, extract_card_info, query_card_from_api, get_card_transactions, is_card_activated
 from ..utils.auth import get_current_user
+from ..utils.vocard import verify_3ds_code
 
 router = APIRouter(prefix="/cards", tags=["cards"])
 
@@ -887,4 +888,30 @@ async def get_email_verification_codes():
             "success": False,
             "message": f"请求异常: {str(e)}",
             "data": {"error": str(e)}
+        }
+
+
+@router.post("/vocard/verify", response_model=schemas.APIResponse)
+async def verify_vocard_code(
+    request: schemas.VocardVerifyRequest
+):
+    """
+    查询 Vocard 验证码 (无需鉴权)
+    """
+    result = await verify_3ds_code(request.lastFour)
+    
+    # Vocard API returns { success: true, data: { ... } } on valid request
+    # even if found is false.
+    
+    if result.get("success"):
+        return {
+            "success": True,
+            "message": "查询成功",
+            "data": result.get("data")
+        }
+    else:
+        return {
+            "success": False,
+            "message": result.get("error") or result.get("message") or "查询失败",
+            "data": result
         }
