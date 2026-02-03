@@ -13,8 +13,28 @@ from ..config import (
 )
 from .mercury import redeem_key
 from .holy import redeem_holy_key
-from .vocard import redeem_vocard_key
+from .vocard import redeem_vocard_key, get_vocard_transactions
 from .lcard import redeem_lcard_key
+
+# ... (omitted) ...
+
+async def get_card_transactions(card_identifier: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
+    """
+    查询交易记录
+    
+    Args:
+        card_identifier: 卡号 或 卡密ID (如 CDK-xxx)
+    """
+    # 1. Vocard (CDK/LR)
+    if card_identifier.upper().startswith(("CDK-", "LR-")):
+        print(f"[查询交易记录] 检测到 Vocard ID: {card_identifier}")
+        res = await get_vocard_transactions(card_identifier)
+        if res.get("success"):
+            return True, res, None
+        return False, None, res.get("error")
+        
+    print(f"[查询交易记录] 未知的卡片标识或不支持该类型: {card_identifier}")
+    return False, None, "暂不支持此类型卡片的交易查询"
 
 async def query_card_from_api(card_id: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
     """
@@ -326,11 +346,4 @@ def extract_card_info(api_response: Dict) -> Dict:
     return info
 
 
-async def get_card_transactions(card_number: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
-    """
-    查询交易记录
-    目前 Mercury API 未提供明确的交易查询接口，暂时返回空或错误
-    """
-    print("[查询交易记录] 新接口暂不支持交易查询")
-    return False, None, "新接口暂不支持交易查询"
 

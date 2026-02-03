@@ -409,3 +409,81 @@ async def verify_3ds_code(last_four: str) -> Dict[str, Any]:
             "error": str(e)
         }
 
+
+async def get_vocard_transactions(card_id_or_token: str) -> Dict[str, Any]:
+    """
+    Query transaction records for Vocard (CDK/LR) cards.
+    API: https://vocard.store/api/cards/transactions/{card_id}
+    """
+    url = f"https://vocard.store/api/cards/transactions/{card_id_or_token}"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://vocard.store/",
+        "Origin": "https://vocard.store"
+    }
+    
+    print(f"[Vocard] Querying transactions for: {card_id_or_token}")
+    
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+            # Try to get CSRF first
+            try:
+                await client.get("https://vocard.store/", headers=headers)
+                csrf_token = client.cookies.get("csrf_token")
+                if csrf_token:
+                    headers["x-csrf-token"] = csrf_token
+            except Exception:
+                pass
+
+            response = await client.get(url, headers=headers)
+            print(f"[Vocard] Transactions Response ({response.status_code}): {response.text[:200]}...")
+            
+            if response.status_code != 200:
+                return {
+                    "success": False,
+                    "error": f"HTTP {response.status_code}"
+                }
+                
+            resp_json = response.json()
+            if not resp_json.get("success"):
+                return {
+                    "success": False,
+                    "error": resp_json.get("message") or "Query failed"
+                }
+
+            data = resp_json.get("data", {})
+            transactions = data.get("transactions", [])
+            
+            # Normalize transactions
+            normalized_txs = []
+            for tx in transactions:
+                # Format: 2026-02-03T13:11:16.481+0000
+                tx_date = tx.get("date")
+                
+                normalized_txs.append({
+                    "merchant": tx.get("merchantName"),
+                    "amount": tx.get("amount"),
+                    "currency": tx.get("currency"),
+                    "date": tx_date,
+                    "status": tx.get("status"),
+                    "failureReason": tx.get("failureReason"),
+                    "id": tx.get("id")
+                })
+
+            return {
+                "success": True,
+                "card_number": f"****{data.get('lastFour')}" if data.get("lastFour") else None,
+                "last_four": data.get("lastFour"),
+                "transactions": normalized_txs,
+                "total_count": data.get("total", 0),
+                "settled_count": data.get("settledCount", 0),
+                "settled_amount": data.get("settledAmount", 0)
+            }
+
+    except Exception as e:
+        print(f"[Vocard] Transaction Query Error: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }

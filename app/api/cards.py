@@ -722,7 +722,9 @@ async def get_card_transaction_history(
         raise HTTPException(status_code=400, detail="卡片未激活，无法查询消费记录")
 
     # 从API查询消费记录
-    success, card_info, error = await get_card_transactions(str(db_card.card_number))
+    # 对于 Vocard (CDK/LR)，优先使用 card_id 查询
+    identifier = db_card.card_id if db_card.card_id and db_card.card_id.upper().startswith(("CDK-", "LR-")) else str(db_card.card_number)
+    success, card_info, error = await get_card_transactions(identifier)
 
     if not success:
         raise HTTPException(status_code=400, detail=error or "查询消费记录失败")
@@ -753,7 +755,9 @@ async def query_card_transactions_by_card_id(
         raise HTTPException(status_code=400, detail="卡片未激活，无法查询消费记录")
 
     # 从API查询消费记录
-    success, card_info, error = await get_card_transactions(str(db_card.card_number))
+    # 对于 Vocard (CDK/LR)，优先使用 card_id 查询
+    identifier = db_card.card_id if db_card.card_id and db_card.card_id.upper().startswith(("CDK-", "LR-")) else str(db_card.card_number)
+    success, card_info, error = await get_card_transactions(identifier)
 
     if not success:
         raise HTTPException(status_code=400, detail=error or "查询消费记录失败")

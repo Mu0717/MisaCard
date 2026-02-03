@@ -1015,15 +1015,19 @@
           html += `<div><span class="text-gray-600">卡号：</span><span class="font-semibold">${
             cardInfo.card_number || "N/A"
           }</span></div>`;
-          html += `<div><span class="text-gray-600">状态：</span><span class="font-semibold">${
+          /* html += `<div><span class="text-gray-600">状态：</span><span class="font-semibold">${
             cardInfo.status || "N/A"
-          }</span></div>`;
+          }</span></div>`; */
           html += `<div><span class="text-gray-600">余额：</span><span class="font-semibold text-green-600">$${
-            cardInfo.available !== undefined ? cardInfo.available : "N/A"
+            cardInfo.settled_amount !== undefined
+              ? cardInfo.settled_amount
+              : cardInfo.available !== undefined
+                ? cardInfo.available
+                : "N/A"
           }</span></div>`;
-          html += `<div><span class="text-gray-600">已用：</span><span class="font-semibold text-blue-600">$${
+          /* html += `<div><span class="text-gray-600">已用：</span><span class="font-semibold text-blue-600">$${
             cardInfo.pending !== undefined ? cardInfo.pending : "N/A"
-          }</span></div>`;
+          }</span></div>`; */
           html += `</div>`;
           html += `</div>`;
 
@@ -1038,11 +1042,22 @@
               } ${tx.merchant || tx.bank_description || "未知商户"}</span>`;
               html += `<span class="font-bold ${
                 tx.amount > 0 ? "text-red-600" : "text-green-600"
-              }">$${Math.abs(tx.amount || 0).toFixed(2)}</span>`;
+              }">${tx.amount > 0 ? "-" : "+"}${Math.abs(tx.amount || 0).toFixed(2)} ${tx.currency || ""}</span>`;
               html += `</div>`;
               html += `<div class="text-gray-600">`;
               if (tx.date) html += `<div>时间: ${formatDate(tx.date)}</div>`;
-              if (tx.status) html += `<div>状态: ${tx.status}</div>`;
+              if (tx.status) {
+                let statusColor =
+                  tx.status === "APPROVED"
+                    ? "text-green-600"
+                    : tx.status === "FAILED"
+                      ? "text-red-600"
+                      : "text-gray-600";
+                html += `<div>状态: <span class="${statusColor}">${tx.status}</span></div>`;
+              }
+              if (tx.failureReason) {
+                html += `<div class="text-red-500 mt-1 text-xs">失败原因: ${tx.failureReason}</div>`;
+              }
               html += `</div>`;
               html += `</div>`;
             });
@@ -1099,15 +1114,19 @@
           html += `<div><span class="text-gray-600">卡号:</span> ${
             cardInfo.card_number || "N/A"
           }</div>`;
-          html += `<div><span class="text-gray-600">状态:</span> ${
+          /* html += `<div><span class="text-gray-600">状态:</span> ${
             cardInfo.status || "N/A"
-          }</div>`;
+          }</div>`; */
           html += `<div><span class="text-gray-600">余额:</span> <span class="text-green-600 font-semibold">$${
-            cardInfo.balance !== undefined ? cardInfo.balance : "N/A"
+            cardInfo.settled_amount !== undefined
+              ? cardInfo.settled_amount
+              : cardInfo.balance !== undefined
+                ? cardInfo.balance
+                : "N/A"
           }</span></div>`;
-          html += `<div><span class="text-gray-600">已用:</span> <span class="text-blue-600 font-semibold">$${
+          /* html += `<div><span class="text-gray-600">已用:</span> <span class="text-blue-600 font-semibold">$${
             cardInfo.pending !== undefined ? cardInfo.pending : "N/A"
-          }</span></div>`;
+          }</span></div>`; */
           html += `</div>`;
           html += `</div>`;
 
@@ -1122,14 +1141,24 @@
               } ${tx.merchant || tx.bank_description || "未知"}</span>`;
               html += `<span class="font-bold ${
                 tx.amount > 0 ? "text-red-600" : "text-green-600"
-              }">$${Math.abs(tx.amount || 0).toFixed(2)}</span>`;
+              }">${tx.amount > 0 ? "-" : "+"}${Math.abs(tx.amount || 0).toFixed(2)} ${tx.currency || ""}</span>`;
               html += `</div>`;
               if (tx.date)
                 html += `<div class="text-gray-600">时间: ${formatDate(
                   tx.date,
                 )}</div>`;
-              if (tx.status)
-                html += `<div class="text-gray-600">状态: ${tx.status}</div>`;
+              if (tx.status) {
+                let statusColor =
+                  tx.status === "APPROVED"
+                    ? "text-green-600"
+                    : tx.status === "FAILED"
+                      ? "text-red-600"
+                      : "text-gray-600";
+                html += `<div class="text-gray-600">状态: <span class="${statusColor}">${tx.status}</span></div>`;
+              }
+              if (tx.failureReason) {
+                html += `<div class="text-red-500 mt-1">原因: ${tx.failureReason}</div>`;
+              }
               html += `</div>`;
             });
             html += `</div>`;
@@ -1198,17 +1227,19 @@
           html += `<div><span class="text-gray-600">卡号：</span><span class="font-semibold text-gray-800">${
             cardInfo.card_number || cardNumber
           }</span></div>`;
-          html += `<div><span class="text-gray-600">状态：</span><span class="font-semibold">${getStatusBadge(
+          /* html += `<div><span class="text-gray-600">状态：</span><span class="font-semibold">${getStatusBadge(
             cardInfo.status || "N/A",
-          )}</span></div>`;
+          )}</span></div>`; */
           html += `<div><span class="text-gray-600">余额：</span><span class="font-bold text-green-600 text-lg">$${
-            cardInfo.available !== undefined
-              ? cardInfo.available.toFixed(2)
-              : "N/A"
+            cardInfo.settled_amount !== undefined
+              ? Number(cardInfo.settled_amount).toFixed(2)
+              : cardInfo.available !== undefined
+                ? cardInfo.available.toFixed(2)
+                : "N/A"
           }</span></div>`;
-          html += `<div><span class="text-gray-600">已用：</span><span class="font-bold text-blue-600 text-lg">$${
+          /* html += `<div><span class="text-gray-600">已用：</span><span class="font-bold text-blue-600 text-lg">$${
             cardInfo.pending !== undefined ? cardInfo.pending.toFixed(2) : "N/A"
-          }</span></div>`;
+          }</span></div>`; */
           if (cardInfo.card_limit !== undefined) {
             html += `<div><span class="text-gray-600">额度：</span><span class="font-semibold text-gray-800">$${cardInfo.card_limit}</span></div>`;
           }
