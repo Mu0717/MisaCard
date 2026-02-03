@@ -102,6 +102,20 @@ def parse_card_line(line: str) -> Optional[Dict]:
                 "card_header": None
             }
 
+    # 5. 尝试匹配 LCard 格式 (-L 后缀)
+    # 示例: 348N5PMJ8WAJ537W-L
+    lcard_pattern = r'(?:卡密:\s*)?([A-Za-z0-9]+\-L)\b'
+    match = re.search(lcard_pattern, line)
+    if match:
+         card_id = match.group(1).strip()
+         if validate_card_id(card_id):
+             return {
+                "card_id": card_id,
+                "card_limit": 0.0,
+                "validity_hours": 1,
+                "card_header": None
+            }
+
     # 原有的 UUID 匹配
     card_id_pattern = r'(?:卡密:\s*)?((?:mio-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
     match = re.search(card_id_pattern, line, re.IGNORECASE)
@@ -200,6 +214,14 @@ def validate_card_id(card_id: str) -> bool:
     # 要求：全大写或数字，含连字符，长度>=20，避免匹配到普通单词
     if re.match(r'^[A-Z0-9]+(-[A-Z0-9]+)+$', card_id) and len(card_id) >= 20:
         return True
+
+    # 6. 检查 LCard 格式 (-L 后缀)
+    # 示例: 348N5PMJ8WAJ537W-L
+    if card_id.endswith('-L'):
+        # LCard 除去后缀通常是纯字母数字
+        prefix = card_id[:-2]
+        if prefix and re.match(r'^[A-Za-z0-9]+$', prefix):
+            return True
 
     return False
 

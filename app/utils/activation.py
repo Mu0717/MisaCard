@@ -14,6 +14,7 @@ from ..config import (
 from .mercury import redeem_key
 from .holy import redeem_holy_key
 from .vocard import redeem_vocard_key
+from .lcard import redeem_lcard_key
 
 async def query_card_from_api(card_id: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
     """
@@ -62,6 +63,11 @@ async def activate_card_via_api(card_id: str, max_retries: int = None, retry_del
         elif card_id.upper().startswith(("LR-", "CDK-")):
             print(f"[激活卡片] 检测到 Vocard 特征 (LR-/CDK-)，使用 Vocard API")
             response_data = await redeem_vocard_key(card_id)
+
+        # 3. LCard 特征
+        elif card_id.endswith("-L"):
+            print(f"[激活卡片] 检测到 LCard 特征 (-L)，使用 LCard API")
+            response_data = await redeem_lcard_key(card_id)
             
         # 3. 隐式 Holy 特征 (非 UUID，包含连字符)
         # Mercury 通常是标准 UUID (8-4-4-4-12)，如果不是 UUID 但有连字符，可能是 Holy 的其他格式
@@ -163,9 +169,10 @@ def extract_card_info(api_response: Dict) -> Dict:
     info = {}
     
     # 提取 card 对象
-    card_data = api_response.get("card", {})
-    if not isinstance(card_data, dict):
-        # 尝试直接从根节点取（兼容旧结构或防御性编程）
+    card_data = api_response.get("card")
+    
+    # 如果 card 不存在或不是字典（或者是空字典），尝试直接从根节点取（兼容扁平结构，如 LCard/Vocard）
+    if not card_data or not isinstance(card_data, dict):
         card_data = api_response
         
     # 卡号 (pan / cardNumber)
