@@ -116,8 +116,8 @@ def parse_card_line(line: str) -> Optional[Dict]:
                 "card_header": None
             }
 
-    # 原有的 UUID 匹配
-    card_id_pattern = r'(?:卡密:\s*)?((?:mio-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
+    # UUID 匹配 (支持 mio-UUID、纯 UUID、Airwallex UUID-XXXX 格式)
+    card_id_pattern = r'(?:卡密:\s*)?((?:mio-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:-[0-9a-zA-Z]+)?)'
     match = re.search(card_id_pattern, line, re.IGNORECASE)
 
     if match:
@@ -178,8 +178,8 @@ def validate_card_id(card_id: str) -> bool:
     if clean_id.startswith('mio-'):
         clean_id = clean_id[4:]
 
-    # 1. 检查是否是 UUID 格式（带连字符）
-    uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    # 1. 检查是否是 UUID 格式（带连字符）或 Airwallex 格式 (UUID-XXXX)
+    uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(-[0-9a-zA-Z]+)?$'
     if re.match(uuid_pattern, clean_id):
         return True
         

@@ -11,7 +11,7 @@ from ..config import (
     ACTIVATION_MAX_RETRIES,
     ACTIVATION_RETRY_DELAY
 )
-from .mercury import redeem_key
+from .mercury import redeem_key, redeem_airwallex_key, is_airwallex_key
 from .holy import redeem_holy_key
 from .vocard import redeem_vocard_key, get_vocard_transactions
 from .lcard import redeem_lcard_key
@@ -89,7 +89,12 @@ async def activate_card_via_api(card_id: str, max_retries: int = None, retry_del
             print(f"[激活卡片] 检测到 LCard 特征 (-L)，使用 LCard API")
             response_data = await redeem_lcard_key(card_id)
             
-        # 3. 隐式 Holy 特征 (非 UUID，包含连字符)
+        # 3. Airwallex 特征 (UUID-XXXX 格式，如 ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5-4513)
+        elif is_airwallex_key(card_id):
+            print(f"[激活卡片] 检测到 Airwallex 格式 (UUID-XXXX)，使用 Airwallex API")
+            response_data = await redeem_airwallex_key(card_id)
+
+        # 4. 隐式 Holy 特征 (非 UUID，包含连字符)
         # Mercury 通常是标准 UUID (8-4-4-4-12)，如果不是 UUID 但有连字符，可能是 Holy 的其他格式
         elif "-" in card_id and not (len(card_id) == 36 and card_id.count("-") == 4):
             print(f"[激活卡片] 检测到非 UUID 连字符格式，尝试使用 Holy API")
@@ -222,7 +227,13 @@ def extract_card_info(api_response: Dict) -> Dict:
     # 处理账单地址 (legal_address)
     # Holy 可能没有返回 legal_address
     legal_addr = api_response.get("legal_address") or card_data.get("legal_address")
-    if legal_addr and isinstance(legal_addr, dict):
+    # 检查地址是否有实际内容（Airwallex 返回的 legal_address 字段可能全是空字符串）
+    has_real_address = (
+        legal_addr and isinstance(legal_addr, dict) and
+        any(v for v in legal_addr.values() if v and str(v).strip())
+    )
+    
+    if has_real_address:
         # 构建格式化地址字符串
         parts = []
         if legal_addr.get("address1"): parts.append(legal_addr["address1"])
@@ -235,9 +246,11 @@ def extract_card_info(api_response: Dict) -> Dict:
         # 保存原始地址信息供前端精确显示/复制
         info["legal_address"] = legal_addr
     else:
-        # 如果没有返回地址，需要区分是 Holy 还是 Mercury 的 Fallback
+        # 地址为空或不存在，使用默认地址
         # Holy 特征: card 对象中有 cardNumber (camelCase) 或 root 有 activationToken
         is_holy = "cardNumber" in card_data or "activationToken" in api_response
+        # Airwallex 特征: card_type == "airwallex"
+        is_airwallex = api_response.get("card_type") == "airwallex"
         
         if is_holy:
             # Holy 卡密默认地址 (Spain)
@@ -250,7 +263,7 @@ def extract_card_info(api_response: Dict) -> Dict:
                 "country": "Spain"
             }
         else:
-            # Mercury 默认地址 (US)
+            # Mercury / Airwallex 默认地址 (US)
             info["billing_address"] = "41 Glenn Rd C23, East Hartford, CT 06118"
             info["legal_address"] = {
                 "address1": "41 Glenn Rd C23",
@@ -261,7 +274,8 @@ def extract_card_info(api_response: Dict) -> Dict:
             }
 
     info["card_nickname"] = card_data.get("card_nickname") or card_data.get("nickname") or f"Card {info.get('card_number', '')[-4:] if info.get('card_number') else ''}"
-    info["card_limit"] = card_data.get("card_limit", 0)
+    # card_limit: Airwallex 在根节点，Mercury 在 card 节点
+    info["card_limit"] = api_response.get("card_limit") if "card_limit" in api_response else card_data.get("card_limit", 0)
     info["status"] = "已激活" if api_response.get("success") else "unknown"
     
     # 定义中国时区
@@ -304,10 +318,11 @@ def extract_card_info(api_response: Dict) -> Dict:
     raw_create_time = api_response.get("used_time") or card_data.get("created_time") or card_data.get("createdAt")
     info["create_time"] = convert_to_china_time(raw_create_time)
     
-    # 计算 validity_hours
+    # 计算 validity_hours (向上取整，确保为整数)
     expire_minutes = api_response.get("expire_minutes")
     if expire_minutes is not None:
-        info["validity_hours"] = int(expire_minutes) / 60
+        import math
+        info["validity_hours"] = math.ceil(int(expire_minutes) / 60)
     else:
         info["validity_hours"] = card_data.get("validity_hours")
         

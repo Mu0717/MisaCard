@@ -3,18 +3,24 @@ from typing import Dict, Any, Optional
 
 MERCURY_REDEEM_URL = "https://actcard.xyz/api/keys/redeem"
 MERCURY_QUERY_URL = "https://actcard.xyz/api/keys/query"
+AIRWALLEX_REDEEM_URL = "https://actcard.xyz/api/airwallex/redeem"
 
-async def redeem_key(key_id: str) -> Dict[str, Any]:
-    """
-    激活卡密 (Redeem Key) via Mercury API
-    
-    Args:
-        key_id: The key ID to redeem.
-        
-    Returns:
-        JSON response from the API.
-    """
-    headers = {
+import re
+
+# Airwallex 卡密格式: UUID-XXXX (如 ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5-4513)
+AIRWALLEX_KEY_PATTERN = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-[0-9a-zA-Z]+$',
+    re.IGNORECASE
+)
+
+def is_airwallex_key(key_id: str) -> bool:
+    """判断是否为 Airwallex 格式卡密 (UUID-XXXX)"""
+    return bool(AIRWALLEX_KEY_PATTERN.match(key_id.strip()))
+
+
+def _get_headers() -> dict:
+    """通用请求 headers"""
+    return {
         "accept": "*/*",
         "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
         "cache-control": "no-cache",
@@ -32,6 +38,18 @@ async def redeem_key(key_id: str) -> Dict[str, Any]:
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
     }
 
+
+async def redeem_key(key_id: str) -> Dict[str, Any]:
+    """
+    激活卡密 (Redeem Key) via Mercury API
+    
+    Args:
+        key_id: The key ID to redeem.
+        
+    Returns:
+        JSON response from the API.
+    """
+    headers = _get_headers()
     payload = {"key_id": key_id}
 
     async with httpx.AsyncClient() as client:
@@ -52,18 +70,40 @@ async def redeem_key(key_id: str) -> Dict[str, Any]:
                 return query_data
                 
         except Exception as e:
-            # If query fails network-wise, maybe we should try redeem or just raise?
-            # For now, let's log/print and try redeem or just re-raise. 
-            # Given the script nature, if query fails, redeem likely fails too or we shouldn't proceed.
-            # But to be safe and robust, let's assume if query crashes, we abort.
-            # However, to match previous behavior, if something goes wrong with query that isn't the specific "unused" case, 
-            # we might return the error.
             print(f"Error checking key status: {e}")
             return {"success": False, "error": f"Network/Query Error: {str(e)}"}
 
         # Step 2: Redeem if unused
         response = await client.post(MERCURY_REDEEM_URL, json=payload, headers=headers)
         return response.json()
+
+
+async def redeem_airwallex_key(key_id: str) -> Dict[str, Any]:
+    """
+    激活 Airwallex 格式卡密
+    格式: UUID-XXXX (如 ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5-4513)
+    接口: https://actcard.xyz/api/airwallex/redeem
+    
+    Args:
+        key_id: Airwallex 格式的卡密
+        
+    Returns:
+        JSON response from the API.
+    """
+    headers = _get_headers()
+    
+    # 去掉后缀，只保留纯 UUID 部分 (如 ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5-4513 -> ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5)
+    code = key_id.rsplit("-", 1)[0]
+    payload = {"code": code}
+
+    async with httpx.AsyncClient() as client:
+        try:
+            print(f"[Airwallex] POST {AIRWALLEX_REDEEM_URL} payload: {payload}")
+            response = await client.post(AIRWALLEX_REDEEM_URL, json=payload, headers=headers)
+            return response.json()
+        except Exception as e:
+            print(f"[Airwallex] 请求失败: {e}")
+            return {"success": False, "error": f"Network Error: {str(e)}"}
 
 if __name__ == "__main__":
     import asyncio
