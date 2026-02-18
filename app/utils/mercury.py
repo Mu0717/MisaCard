@@ -50,7 +50,7 @@ async def redeem_key(key_id: str) -> Dict[str, Any]:
         JSON response from the API.
     """
     headers = _get_headers()
-    payload = {"key_id": key_id}
+    payload = {"key_id": key_id,"fallback_card_type":"debit"}
 
     async with httpx.AsyncClient() as client:
         # Step 1: Query the key status first
