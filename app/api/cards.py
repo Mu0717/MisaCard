@@ -722,8 +722,14 @@ async def get_card_transaction_history(
         raise HTTPException(status_code=400, detail="卡片未激活，无法查询消费记录")
 
     # 从API查询消费记录
-    # 对于 Vocard (CDK/LR)，优先使用 card_id 查询
-    identifier = db_card.card_id if db_card.card_id and db_card.card_id.upper().startswith(("CDK-", "LR-")) else str(db_card.card_number)
+    # 对于 Vocard (CDK/LR) 和 Mercury (UUID)，使用 card_id 查询
+    identifier = str(db_card.card_number)
+    if db_card.card_id:
+        cid = db_card.card_id
+        # Vocard (CDK/LR) 或 Mercury/UUID (36 chars, 4 dashes)
+        if cid.upper().startswith(("CDK-", "LR-")) or (len(cid) == 36 and cid.count("-") == 4):
+            identifier = cid
+            
     success, card_info, error = await get_card_transactions(identifier)
 
     if not success:
@@ -755,8 +761,14 @@ async def query_card_transactions_by_card_id(
         raise HTTPException(status_code=400, detail="卡片未激活，无法查询消费记录")
 
     # 从API查询消费记录
-    # 对于 Vocard (CDK/LR)，优先使用 card_id 查询
-    identifier = db_card.card_id if db_card.card_id and db_card.card_id.upper().startswith(("CDK-", "LR-")) else str(db_card.card_number)
+    # 对于 Vocard (CDK/LR) 和 Mercury (UUID)，使用 card_id 查询
+    identifier = str(db_card.card_number)
+    if db_card.card_id:
+        cid = db_card.card_id
+        # Vocard (CDK/LR) 或 Mercury/UUID (36 chars, 4 dashes)
+        if cid.upper().startswith(("CDK-", "LR-")) or (len(cid) == 36 and cid.count("-") == 4):
+            identifier = cid
+
     success, card_info, error = await get_card_transactions(identifier)
 
     if not success:

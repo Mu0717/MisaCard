@@ -11,7 +11,7 @@ from ..config import (
     ACTIVATION_MAX_RETRIES,
     ACTIVATION_RETRY_DELAY
 )
-from .mercury import redeem_key, redeem_airwallex_key, is_airwallex_key
+from .mercury import redeem_key, redeem_airwallex_key, is_airwallex_key, get_key_transactions
 from .holy import redeem_holy_key
 from .vocard import redeem_vocard_key, get_vocard_transactions
 from .lcard import redeem_lcard_key
@@ -29,6 +29,16 @@ async def get_card_transactions(card_identifier: str) -> Tuple[bool, Optional[Di
     if card_identifier.upper().startswith(("CDK-", "LR-")):
         print(f"[查询交易记录] 检测到 Vocard ID: {card_identifier}")
         res = await get_vocard_transactions(card_identifier)
+        if res.get("success"):
+            return True, res, None
+        return False, None, res.get("error")
+
+    # 2. Mercury / Airwallex (UUID)
+    # 简单的 UUID 格式检查 (36 chars, 4 dashes)
+    if len(card_identifier) == 36 and card_identifier.count("-") == 4:
+        print(f"[查询交易记录] 检测到 Mercury/UUID Key: {card_identifier}")
+        res = await get_key_transactions(card_identifier)
+        
         if res.get("success"):
             return True, res, None
         return False, None, res.get("error")

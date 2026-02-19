@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional
 
 MERCURY_REDEEM_URL = "https://actcard.xyz/api/keys/redeem"
 MERCURY_QUERY_URL = "https://actcard.xyz/api/keys/query"
+MERCURY_TRANSACTIONS_URL = "https://actcard.xyz/api/keys/transactions"
 AIRWALLEX_REDEEM_URL = "https://actcard.xyz/api/airwallex/redeem"
 
 import re
@@ -22,20 +23,19 @@ def _get_headers() -> dict:
     """通用请求 headers"""
     return {
         "accept": "*/*",
-        "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "accept-language": "zh-CN,zh;q=0.9",
         "cache-control": "no-cache",
         "content-type": "application/json",
         "origin": "https://actcard.xyz",
-        "pragma": "no-cache",
         "priority": "u=1, i",
-        "referer": "https://actcard.xyz/redeem",
-        "sec-ch-ua": '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+        "referer": "https://actcard.xyz/",
+        "sec-ch-ua": '"Not(A:Brand";v="8", "Chromium";v="144", "Google Chrome";v="144"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
         "sec-fetch-site": "same-origin",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
     }
 
 
@@ -105,15 +105,78 @@ async def redeem_airwallex_key(key_id: str) -> Dict[str, Any]:
             print(f"[Airwallex] 请求失败: {e}")
             return {"success": False, "error": f"Network Error: {str(e)}"}
 
+
+async def get_key_transactions(key_id: str) -> Dict[str, Any]:
+    """
+    查询卡密交易记录
+    
+    Args:
+        key_id: The key ID to query transactions for.
+        
+    Returns:
+        JSON response from the API containing transaction records.
+    """
+    headers = _get_headers()
+    payload = {"key_id": key_id}
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(MERCURY_TRANSACTIONS_URL, json=payload, headers=headers)
+            data = response.json()
+            
+            # 如果请求失败或success为false, 直接返回
+            if not data.get("success"):
+                return data
+                
+            # Normalize transactions to match system format
+            # 用户指定映射:
+            # 支付额度: amount
+            # 支付状态: status
+            # 支付备注: reason_for_failure
+            
+            normalized_txs = []
+            for tx in data.get("transactions", []):
+                normalized_txs.append({
+                    # Standard fields expected by frontend/system
+                    "merchant": tx.get("merchant_name") or tx.get("bank_description"),
+                    "amount": tx.get("amount"),
+                    "currency": tx.get("merchant_currency"),
+                    "date": tx.get("created_at"),
+                    "status": tx.get("status"),
+                    "failureReason": tx.get("reason_for_failure"), # Mapped as requested
+                    "id": tx.get("id"),
+                    
+                    # Store original fields as well if needed
+                    "original_amount": tx.get("amount"),
+                    "original_status": tx.get("status"),
+                    "bank_description": tx.get("bank_description")
+                })
+            
+            return {
+                "success": True,
+                "transactions": normalized_txs,
+                "transaction_count": data.get("transaction_count", 0),
+                "card_id": data.get("card_id"),
+                "account_user_id": data.get("account_user_id"),
+                # 保留原始数据以防万一
+                "original_response": data
+            }
+
+        except Exception as e:
+            print(f"Error fetching transactions: {e}")
+            return {"success": False, "error": f"Network Error: {str(e)}"}
+
 if __name__ == "__main__":
     import asyncio
     
     async def main():
         # Example usage
         try:
-            # Replace with a real key for testing if known, or use a dummy one
-            res = await redeem_key("your_test_key_id")
-            print(res)
+            # key_id = "5236c9bd-f11f-45b7-8d21-29bef978ca2f"
+            # print(f"Checking transactions for key: {key_id}")
+            # res = await get_key_transactions(key_id)
+            # print(res)
+            pass
         except Exception as e:
             print(f"Error: {e}")
 
