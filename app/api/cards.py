@@ -726,8 +726,8 @@ async def get_card_transaction_history(
     identifier = str(db_card.card_number)
     if db_card.card_id:
         cid = db_card.card_id
-        # Vocard (CDK/LR) 或 Mercury/UUID (36 chars, 4 dashes)
-        if cid.upper().startswith(("CDK-", "LR-")) or (len(cid) == 36 and cid.count("-") == 4):
+        # Vocard (CDK/LR) 或 Mercury/UUID (36 chars, 4 dashes) 或 NodeCard (-node)
+        if cid.upper().startswith(("CDK-", "LR-")) or (len(cid) == 36 and cid.count("-") == 4) or cid.lower().endswith("-node"):
             identifier = cid
             
     success, card_info, error = await get_card_transactions(identifier)
@@ -765,8 +765,8 @@ async def query_card_transactions_by_card_id(
     identifier = str(db_card.card_number)
     if db_card.card_id:
         cid = db_card.card_id
-        # Vocard (CDK/LR) 或 Mercury/UUID (36 chars, 4 dashes)
-        if cid.upper().startswith(("CDK-", "LR-")) or (len(cid) == 36 and cid.count("-") == 4):
+        # Vocard (CDK/LR) 或 Mercury/UUID (36 chars, 4 dashes) 或 NodeCard (-node)
+        if cid.upper().startswith(("CDK-", "LR-")) or (len(cid) == 36 and cid.count("-") == 4) or cid.lower().endswith("-node"):
             identifier = cid
 
     success, card_info, error = await get_card_transactions(identifier)

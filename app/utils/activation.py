@@ -15,6 +15,7 @@ from .mercury import redeem_key, redeem_airwallex_key, is_airwallex_key, get_key
 from .holy import redeem_holy_key
 from .vocard import redeem_vocard_key, get_vocard_transactions
 from .lcard import redeem_lcard_key
+from .nodecard import redeem_nodecard_key, is_nodecard_key, get_nodecard_transactions
 
 # ... (omitted) ...
 
@@ -29,6 +30,14 @@ async def get_card_transactions(card_identifier: str) -> Tuple[bool, Optional[Di
     if card_identifier.upper().startswith(("CDK-", "LR-")):
         print(f"[查询交易记录] 检测到 Vocard ID: {card_identifier}")
         res = await get_vocard_transactions(card_identifier)
+        if res.get("success"):
+            return True, res, None
+        return False, None, res.get("error")
+
+    # 1.5 NodeCard (-node 后缀)
+    if is_nodecard_key(card_identifier):
+        print(f"[查询交易记录] 检测到 NodeCard Key: {card_identifier}")
+        res = await get_nodecard_transactions(card_identifier)
         if res.get("success"):
             return True, res, None
         return False, None, res.get("error")
@@ -98,6 +107,11 @@ async def activate_card_via_api(card_id: str, max_retries: int = None, retry_del
         elif card_id.endswith("-L"):
             print(f"[激活卡片] 检测到 LCard 特征 (-L)，使用 LCard API")
             response_data = await redeem_lcard_key(card_id)
+
+        # 3.5 NodeCard 特征 (UUID-node 格式)
+        elif is_nodecard_key(card_id):
+            print(f"[激活卡片] 检测到 NodeCard 特征 (-node)，使用 NodeCard API")
+            response_data = await redeem_nodecard_key(card_id)
             
         # 3. Airwallex 特征 (UUID-XXXX 格式，如 ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5-4513)
         elif is_airwallex_key(card_id):
@@ -219,6 +233,7 @@ def extract_card_info(api_response: Dict) -> Dict:
     # 有效期格式化 (MM/YY)
     # Mercury: exp_month, exp_year
     # Holy: expiryMonth, expiryYear
+    # NodeCard: expiry (直接就是 "MM/YY" 格式，已在 nodecard.py 中拆分为 exp_month/exp_year)
     exp_month = str(card_data.get("exp_month") or card_data.get("expiryMonth") or "")
     exp_year = str(card_data.get("exp_year") or card_data.get("expiryYear") or "")
     
@@ -231,7 +246,8 @@ def extract_card_info(api_response: Dict) -> Dict:
             exp_year = exp_year[-2:]
         info["card_exp_date"] = f"{exp_month}/{exp_year}"
     else:
-        info["card_exp_date"] = card_data.get("card_exp_date")
+        # 回退: 直接取 card_exp_date 或 expiry (NodeCard 原始值)
+        info["card_exp_date"] = card_data.get("card_exp_date") or card_data.get("expiry")
         
     # 其他字段
     # 处理账单地址 (legal_address)
