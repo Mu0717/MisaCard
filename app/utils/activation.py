@@ -16,6 +16,7 @@ from .holy import redeem_holy_key
 from .vocard import redeem_vocard_key, get_vocard_transactions
 from .lcard import redeem_lcard_key
 from .nodecard import redeem_nodecard_key, is_nodecard_key, get_nodecard_transactions
+from .ncetcard import redeem_ncetcard_key, is_ncetcard_key
 
 # ... (omitted) ...
 
@@ -112,6 +113,11 @@ async def activate_card_via_api(card_id: str, max_retries: int = None, retry_del
         elif is_nodecard_key(card_id):
             print(f"[激活卡片] 检测到 NodeCard 特征 (-node)，使用 NodeCard API")
             response_data = await redeem_nodecard_key(card_id)
+            
+        # 3.6 ncetCard 特征 (-NCET 后缀)
+        elif is_ncetcard_key(card_id):
+            print(f"[激活卡片] 检测到 ncetCard 特征 (-NCET)，使用 ncetCard API")
+            response_data = await redeem_ncetcard_key(card_id)
             
         # 3. Airwallex 特征 (UUID-XXXX 格式，如 ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5-4513)
         elif is_airwallex_key(card_id):
