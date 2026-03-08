@@ -329,6 +329,10 @@ def extract_card_info(api_response: Dict) -> Dict:
             if time_str.endswith('Z'):
                 time_str = time_str.replace('Z', '+00:00')
             
+            # 修剪超过6位的小数秒部分 (Python datetime 不支持超过6位)
+            import re
+            time_str = re.sub(r'(\.\d{6})\d+', r'\1', time_str)
+            
             # 解析 ISO 格式
             dt = datetime.fromisoformat(time_str)
             
