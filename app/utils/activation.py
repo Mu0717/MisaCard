@@ -17,6 +17,7 @@ from .vocard import redeem_vocard_key, get_vocard_transactions
 from .lcard import redeem_lcard_key
 from .nodecard import redeem_nodecard_key, is_nodecard_key, get_nodecard_transactions
 from .ncetcard import redeem_ncetcard_key, is_ncetcard_key
+from .efuncard import redeem_efuncard_key, get_efuncard_transactions, is_efuncard_key
 
 # ... (omitted) ...
 
@@ -31,6 +32,14 @@ async def get_card_transactions(card_identifier: str) -> Tuple[bool, Optional[Di
     if card_identifier.upper().startswith(("CDK-", "LR-")):
         print(f"[查询交易记录] 检测到 Vocard ID: {card_identifier}")
         res = await get_vocard_transactions(card_identifier)
+        if res.get("success"):
+            return True, res, None
+        return False, None, res.get("error")
+
+    # 1.1 Efuncard (-EFUN)
+    if is_efuncard_key(card_identifier):
+        print(f"[查询交易记录] 检测到 Efuncard Key: {card_identifier}")
+        res = await get_efuncard_transactions(card_identifier)
         if res.get("success"):
             return True, res, None
         return False, None, res.get("error")
@@ -118,6 +127,11 @@ async def activate_card_via_api(card_id: str, max_retries: int = None, retry_del
         elif is_ncetcard_key(card_id):
             print(f"[激活卡片] 检测到 ncetCard 特征 (-NCET)，使用 ncetCard API")
             response_data = await redeem_ncetcard_key(card_id)
+            
+        # 3.7 Efuncard 特征 (-EFUN 后缀)
+        elif is_efuncard_key(card_id):
+            print(f"[激活卡片] 检测到 Efuncard 特征 (-EFUN)，使用 Efuncard API")
+            response_data = await redeem_efuncard_key(card_id)
             
         # 3. Airwallex 特征 (UUID-XXXX 格式，如 ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5-4513)
         elif is_airwallex_key(card_id):
