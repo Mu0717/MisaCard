@@ -3,29 +3,29 @@ import re
 from typing import Dict, Any
 from datetime import datetime, timedelta, timezone
 
-LCARD_API_URL = "http://a.card4399.top/api.php"
+LCARD_API_URL = "https://vc7777.cn/api.php"
 
 async def redeem_lcard_key(card_key: str) -> Dict[str, Any]:
     """
     激活 LCard 卡密
-    API: http://a.card4399.top/api.php?action=query&card_keys=XXX
+    API: https://vc7777.cn/api.php
     """
     # 移除 -L 后缀
     real_key = card_key.replace("-L", "").strip()
-
-    params = {
-        "action": "query",
-        "card_keys": real_key
-    }
 
     print(f"[LCard] Querying key: {real_key}")
 
     async with httpx.AsyncClient() as client:
         try:
-            print(f"[LCard] Request URL: {LCARD_API_URL}?{client.build_request('GET', LCARD_API_URL, params=params).url.query.decode('utf-8')}")
+            print(f"[LCard] Request URL: {LCARD_API_URL} (POST)")
             
-            # 尝试 GET 请求 (根据 PHP API 惯例)
-            response = await client.get(LCARD_API_URL, params=params, timeout=30.0)
+            # 使用 multipart/form-data 发送 POST 请求，与浏览器中表单提交格式一致
+            form_data = {
+                "action": (None, "query"),
+                "card_keys": (None, real_key)
+            }
+            
+            response = await client.post(LCARD_API_URL, files=form_data, timeout=30.0)
             
             print(f"[LCard] Response Status: {response.status_code}")
             # print(f"[LCard] Raw Response: {response.text}") # 调试用，生产环境可注释
@@ -67,36 +67,33 @@ async def redeem_lcard_key(card_key: str) -> Dict[str, Any]:
                 # 解析 activation_code
                 activation_code = target_result.get("activation_code", "")
                 
-                # 处理 created_at (时区转换: UTC -> China Time)
                 raw_created = target_result.get("created_at", "")
-                created_iso = ""
-                expire_iso = None
+                raw_used = target_result.get("used_at", "")
                 
+                created_iso = None
+                expire_iso = None
+
+                # 因为前端在 activate.html 不可修改，且存在 new Date(xx) + 减去1小时 的奇特时区机制
+                # 要让前端最后显示的时间（即 new Date(xx) + 8小时时区 - 1小时 = xx + 7小时）恰好等于原始真实的接口中国时间
+                # 就必须将字符串在 Python 后台减去 7 个小时，并包装成严格的 UTC 格式（携带 +00:00）。
                 if raw_created:
                     try:
-                        # 清理格式，假设 API 返回 "YYYY-MM-DD HH:MM:SS"
                         clean_time = raw_created.replace("T", " ").split(".")[0]
-                        
-                        # 假设 API 返回的是 UTC-4 时间 (根据用户反馈 05:42 -> 17:42，相差 12 小时 (-4 -> +8))
                         dt_server = datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
-                        dt_server = dt_server.replace(tzinfo=timezone(timedelta(hours=-4)))
-                        
-                        # 转为中国时区 (UTC+8)
-                        china_tz = timezone(timedelta(hours=8))
-                        dt_cn = dt_server.astimezone(china_tz)
-                        created_iso = dt_cn.isoformat()
-                        
-                        # 计算 24 小时过期时间 (基于中国时区时间)
-                        dt_exp = dt_cn + timedelta(hours=24)
-                        expire_iso = dt_exp.isoformat()
-                        
+                        dt_compensate = dt_server - timedelta(hours=8)
+                        created_iso = dt_compensate.strftime("%Y-%m-%dT%H:%M:%S.000Z")
                     except Exception as e:
-                        print(f"[LCard] Date parse error ({raw_created}): {e}")
-                        if " " in raw_created:
-                            created_iso = raw_created.replace(" ", "T")
-                        else:
-                            created_iso = raw_created
-
+                        created_iso = raw_created
+                        
+                if raw_used:
+                    try:
+                        clean_used = raw_used.replace("T", " ").split(".")[0]
+                        dt_used = datetime.strptime(clean_used, "%Y-%m-%d %H:%M:%S")
+                        dt_used_comp = dt_used - timedelta(hours=8)
+                        expire_iso = dt_used_comp.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                    except Exception as e:
+                        expire_iso = raw_used
+                        
                 # 构建标准化的响应结构
                 normalized_data = {
                     "success": True,  # 只要拿到了数据，视为 API 调用成功
@@ -110,28 +107,42 @@ async def redeem_lcard_key(card_key: str) -> Dict[str, Any]:
                 
                 # 提取卡号、日期、CVV
                 if activation_code:
-                    # 卡号
-                    card_match = re.search(r"卡号[:：]\s*(\d+)", activation_code)
-                    print(f"[LCard] Card Match: {card_match}")
-                    if card_match:
-                        normalized_data["pan"] = card_match.group(1)
-                        print(f"[LCard] Extracted PAN: {normalized_data['pan']}")
+                    # 适配新格式：如 "4859540130534455----2030-4----590"
+                    if "----" in activation_code:
+                        parts = [p.strip() for p in activation_code.split("----")]
+                        if len(parts) >= 3:
+                            normalized_data["pan"] = parts[0]
+                            print(f"[LCard] Extracted PAN: {normalized_data['pan']}")
+                            
+                            date_str = parts[1] # 例如 "2030-4"
+                            if "-" in date_str:
+                                year, month = date_str.split("-", 1)
+                                normalized_data["exp_year"] = year
+                                normalized_data["exp_month"] = month.zfill(2)
+                            
+                            normalized_data["cvv"] = parts[2]
+                            print(f"[LCard] Extracted Date: {normalized_data.get('exp_year')}-{normalized_data.get('exp_month')}, CVV: {normalized_data.get('cvv')}")
+                    else:
+                        # 兼容旧格式提取
+                        card_match = re.search(r"卡号[:：]\s*(\d+)", activation_code)
+                        print(f"[LCard] Card Match: {card_match}")
+                        if card_match:
+                            normalized_data["pan"] = card_match.group(1)
+                            print(f"[LCard] Extracted PAN: {normalized_data['pan']}")
 
-                    # CVV
-                    cvv_match = re.search(r"CVV[:：]\s*(\d+)", activation_code)
-                    print(f"[LCard] CVV Match: {cvv_match}")
-                    if cvv_match:
-                        normalized_data["cvv"] = cvv_match.group(1)
-                        
-                    # 日期 (MM/YY)
-                    date_match = re.search(r"日期[:：]\s*(\d{1,2}/\d{2})", activation_code)
-                    print(f"[LCard] Date Match: {date_match}")
-                    if date_match:
-                        date_str = date_match.group(1)
-                        parts = date_str.split('/')
-                        if len(parts) == 2:
-                            normalized_data["exp_month"] = parts[0].zfill(2)
-                            normalized_data["exp_year"] = "20" + parts[1] # 假定 20xx
+                        cvv_match = re.search(r"CVV[:：]\s*(\d+)", activation_code)
+                        print(f"[LCard] CVV Match: {cvv_match}")
+                        if cvv_match:
+                            normalized_data["cvv"] = cvv_match.group(1)
+                            
+                        date_match = re.search(r"日期[:：]\s*(\d{1,2}/\d{2})", activation_code)
+                        print(f"[LCard] Date Match: {date_match}")
+                        if date_match:
+                            date_str = date_match.group(1)
+                            parts = date_str.split('/')
+                            if len(parts) == 2:
+                                normalized_data["exp_month"] = parts[0].zfill(2)
+                                normalized_data["exp_year"] = "20" + parts[1] # 假定 20xx
                 
                 print(f"[LCard] Final Normalized Data: {normalized_data}")
                 return normalized_data
