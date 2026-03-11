@@ -114,14 +114,22 @@ async def redeem_lcard_key(card_key: str) -> Dict[str, Any]:
                             normalized_data["pan"] = parts[0]
                             print(f"[LCard] Extracted PAN: {normalized_data['pan']}")
                             
-                            date_str = parts[1] # 例如 "2030-4"
+                            date_str = parts[1] # 例如 "2030-4" 或 "2030/4"
                             if "-" in date_str:
                                 year, month = date_str.split("-", 1)
+                                normalized_data["exp_year"] = year
+                                normalized_data["exp_month"] = month.zfill(2)
+                            elif "/" in date_str:
+                                year, month = date_str.split("/", 1)
                                 normalized_data["exp_year"] = year
                                 normalized_data["exp_month"] = month.zfill(2)
                             
                             normalized_data["cvv"] = parts[2]
                             print(f"[LCard] Extracted Date: {normalized_data.get('exp_year')}-{normalized_data.get('exp_month')}, CVV: {normalized_data.get('cvv')}")
+                            
+                            if len(parts) >= 4:
+                                normalized_data["sms_url"] = parts[3]
+                                print(f"[LCard] Extracted SMS URL: {normalized_data['sms_url']}")
                     else:
                         # 兼容旧格式提取
                         card_match = re.search(r"卡号[:：]\s*(\d+)", activation_code)
