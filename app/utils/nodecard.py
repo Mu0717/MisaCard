@@ -5,7 +5,7 @@ API: https://api.node-card.com/api/card/issue
 import httpx
 from typing import Dict, Any
 
-NODECARD_API_URL = "https://api.node-card.com/api/card/issue"
+NODECARD_API_URL = "https://api.node-card.com/api/open/card/redeem"
 
 
 def is_nodecard_key(card_key: str) -> bool:
@@ -26,7 +26,7 @@ async def redeem_nodecard_key(card_key: str) -> Dict[str, Any]:
     Returns:
         标准化的响应数据 (包含 success 字段)
     """
-    # 移除 -node 后缀，提取真正的 secret
+    # 移除 -node 后缀，提取真正的 card_key
     real_key = card_key
     if real_key.lower().endswith("-node"):
         real_key = real_key[:-5]  # 移除 "-node" (5个字符)
@@ -40,9 +40,7 @@ async def redeem_nodecard_key(card_key: str) -> Dict[str, Any]:
     }
 
     payload = {
-        "secret": real_key,
-        "merchantId": "1",
-        "merchantName": "Google"
+        "card_key": real_key
     }
 
     async with httpx.AsyncClient() as client:
@@ -65,11 +63,11 @@ async def redeem_nodecard_key(card_key: str) -> Dict[str, Any]:
                 card_data = data["data"]
 
                 # 解析有效期 (格式: "03/29" -> exp_month="03", exp_year="29")
-                expiry = card_data.get("expiry", "")
+                exp = card_data.get("exp", "")
                 exp_month = ""
                 exp_year = ""
-                if "/" in expiry:
-                    parts = expiry.split("/")
+                if "/" in exp:
+                    parts = exp.split("/")
                     if len(parts) == 2:
                         exp_month = parts[0]
                         exp_year = parts[1]
@@ -84,20 +82,14 @@ async def redeem_nodecard_key(card_key: str) -> Dict[str, Any]:
                     "exp_month": exp_month,
                     "exp_year": exp_year,
                     # 时间信息 (Unix 时间戳)
-                    "created_time": card_data.get("exchange_time"),
+                    "created_time": card_data.get("redeem_time"),
                     "expire_time": card_data.get("expire_time"),
                     # 有效时长
-                    "validity_hours": card_data.get("remaining_hours"),
-                    # 余额
-                    "balance": card_data.get("balance"),
-                    # 地址信息 (构建为 legal_address 标准结构)
-                    "legal_address": {
-                        "address1": card_data.get("street_address", ""),
-                        "city": card_data.get("city", ""),
-                        "region": card_data.get("full_state", ""),
-                        "postal_code": card_data.get("postal_code", ""),
-                        "country": card_data.get("country", ""),
-                    },
+                    "validity_hours": card_data.get("available_hours"),
+                    # 余额 (单位: USD)
+                    "balance": card_data.get("available_amount"),
+                    # 完整账单地址 (API 返回单字符串)
+                    "full_billing_address": card_data.get("full_billing_address", ""),
                     # 保留原始响应
                     "original_response": data,
                     "nodecard_msg": data.get("msg"),
@@ -120,7 +112,25 @@ async def redeem_nodecard_key(card_key: str) -> Dict[str, Any]:
             return {"success": False, "error": f"Network Error: {str(e)}"}
 
 
-NODECARD_TRANSACTIONS_URL = "https://api.node-card.com/api/card/getcardinfos"
+NODECARD_TRANSACTIONS_URL = "https://api.node-card.com/api/open/card/transactions"
+
+
+def _parse_amount(amount_str) -> tuple:
+    """
+    解析金额字符串，兼容 "0 USD"、"10.5 USD" 等格式。
+    返回 (amount_float, currency_str)
+    """
+    if isinstance(amount_str, (int, float)):
+        return float(amount_str), "USD"
+    if isinstance(amount_str, str):
+        parts = amount_str.strip().split()
+        try:
+            amount = float(parts[0])
+        except (ValueError, IndexError):
+            amount = 0.0
+        currency = parts[1] if len(parts) > 1 else "USD"
+        return amount, currency
+    return 0.0, "USD"
 
 
 async def get_nodecard_transactions(card_key: str) -> Dict[str, Any]:
@@ -139,20 +149,21 @@ async def get_nodecard_transactions(card_key: str) -> Dict[str, Any]:
         real_key = real_key[:-5]
 
     headers = {
+        "Content-Type": "application/json;charset=utf-8",
         "Accept": "application/json;charset=utf-8",
         "Origin": "https://node-card.com",
         "Referer": "https://node-card.com/",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
     }
 
-    params = {"secret": real_key}
+    payload = {"card_key": real_key}
 
     async with httpx.AsyncClient() as client:
         try:
             print(f"[NodeCard] 查询交易记录: {real_key}")
-            response = await client.get(
+            response = await client.post(
                 NODECARD_TRANSACTIONS_URL,
-                params=params,
+                json=payload,
                 headers=headers,
                 timeout=30.0
             )
@@ -161,21 +172,21 @@ async def get_nodecard_transactions(card_key: str) -> Dict[str, Any]:
             data = response.json()
             print(f"[NodeCard] 交易记录响应: {data}")
 
-            if data.get("code") == 1 and isinstance(data.get("data"), list):
-                raw_txs = data["data"]
+            if data.get("code") == 1 and isinstance(data.get("data"), dict):
+                raw_txs = data["data"].get("transactions", [])
 
-                # 标准化交易记录格式 (与 Vocard 保持一致)
+                # 标准化交易记录格式 (字段名与 API 实际返回一致)
                 normalized_txs = []
                 for tx in raw_txs:
+                    amt, currency = _parse_amount(tx.get("amount"))
                     normalized_txs.append({
-                        "merchant": tx.get("merchant_name") or tx.get("content"),
-                        "amount": tx.get("amount"),
-                        "currency": "USD",
-                        "date": tx.get("event_time"),
-                        "status": tx.get("result"),
-                        "failureReason": tx.get("result") if tx.get("result") != "APPROVED" else None,
-                        "id": tx.get("event_id"),
-                        "event_type": tx.get("event_type"),
+                        "merchant": tx.get("merchant"),
+                        "amount": amt,
+                        "currency": currency,
+                        "date": tx.get("date"),
+                        "status": tx.get("status"),
+                        "failureReason": tx.get("failureReason") if tx.get("failureReason") != "APPROVED" else None,
+                        "id": tx.get("id"),
                         "content": tx.get("content"),
                     })
 
