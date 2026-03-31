@@ -51,17 +51,29 @@ async def redeem_key(key_id: str) -> Dict[str, Any]:
     """
     headers = _get_headers()
     payload = {"key_id": key_id, "fallback_card_type": "debit"}
+    # 特殊后缀集合：这些后缀的 redeem_mode 直接用后缀本身，不拼接 -gpt-plus-team
+    # key_id 统一使用卡密本身的 UUID
+    SUFFIX_NO_TEAM_POSTFIX = {"458178"}
 
-    # 解析可能存在的后缀格式 (如 UUID-520524)
+    # 解析可能存在的后缀格式 (如 UUID-520524 / UUID-458178)
     key_match = re.match(r'^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})-(.+)$', key_id.strip())
     if key_match:
         actual_key_id = key_match.group(1)
         suffix = key_match.group(2)
-        # 带后缀时重置 payload，去掉 fallback_card_type 避免可能的 409 冲突
-        payload = {
-            "key_id": actual_key_id,
-            "redeem_mode": f"{suffix}-gpt-plus-team"
-        }
+
+        if suffix in SUFFIX_NO_TEAM_POSTFIX:
+            # 特殊后缀：key_id 用卡密本身的 UUID，redeem_mode 只用后缀（不加 -gpt-plus-team）
+            payload = {
+                "key_id": actual_key_id,
+                "redeem_mode": suffix
+            }
+            print(f"[Special Suffix] 后缀 {suffix}，redeem_mode 不拼接团队后缀，key_id: {actual_key_id}")
+        else:
+            # 常规后缀：key_id 用卡密本身的 UUID，redeem_mode 拼接 -gpt-plus-team
+            payload = {
+                "key_id": actual_key_id,
+                "redeem_mode": f"{suffix}-gpt-plus-team"
+            }
 
     async with httpx.AsyncClient() as client:
         # Step 1: Query the key status first
