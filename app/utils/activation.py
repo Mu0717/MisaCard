@@ -6,6 +6,7 @@ import httpx
 from typing import Optional, Dict, Tuple
 import json
 import asyncio
+import re
 
 from ..config import (
     ACTIVATION_MAX_RETRIES,
@@ -53,8 +54,8 @@ async def get_card_transactions(card_identifier: str) -> Tuple[bool, Optional[Di
         return False, None, res.get("error")
 
     # 2. Mercury / Airwallex (UUID)
-    # 简单的 UUID 格式检查 (36 chars, 4 dashes)
-    if len(card_identifier) == 36 and card_identifier.count("-") == 4:
+    # 简单的 UUID 格式检查 (36 chars, 4 dashes) 或带后缀的格式
+    if (len(card_identifier) == 36 and card_identifier.count("-") == 4) or re.match(r'^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})-(.+)$', card_identifier.strip()):
         print(f"[查询交易记录] 检测到 Mercury/UUID Key: {card_identifier}")
         res = await get_key_transactions(card_identifier)
         
@@ -137,6 +138,11 @@ async def activate_card_via_api(card_id: str, max_retries: int = None, retry_del
         elif is_airwallex_key(card_id):
             print(f"[激活卡片] 检测到 Airwallex 格式 (UUID-XXXX)，使用 Airwallex API")
             response_data = await redeem_airwallex_key(card_id)
+
+        # 3.8 Mercury 带有后缀类型 (例如 UUID-520524)
+        elif re.match(r'^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})-(.+)$', card_id.strip()):
+            print(f"[激活卡片] 检测到 Mercury 带有后缀格式，使用 Mercury API")
+            response_data = await redeem_key(card_id)
 
         # 4. 隐式 Holy 特征 (非 UUID，包含连字符)
         # Mercury 通常是标准 UUID (8-4-4-4-12)，如果不是 UUID 但有连字符，可能是 Holy 的其他格式

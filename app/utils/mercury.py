@@ -8,9 +8,9 @@ AIRWALLEX_REDEEM_URL = "https://actcard.xyz/api/airwallex/redeem"
 
 import re
 
-# Airwallex 卡密格式: UUID-XXXX (如 ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5-4513)
+# Airwallex 卡密格式: UUID-XXXX (如 ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5-4513)，限制后缀长度为4
 AIRWALLEX_KEY_PATTERN = re.compile(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-[0-9a-zA-Z]+$',
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-[0-9a-zA-Z]{4}$',
     re.IGNORECASE
 )
 
@@ -50,7 +50,18 @@ async def redeem_key(key_id: str) -> Dict[str, Any]:
         JSON response from the API.
     """
     headers = _get_headers()
-    payload = {"key_id": key_id,"fallback_card_type":"debit"}
+    payload = {"key_id": key_id, "fallback_card_type": "debit"}
+
+    # 解析可能存在的后缀格式 (如 UUID-520524)
+    key_match = re.match(r'^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})-(.+)$', key_id.strip())
+    if key_match:
+        actual_key_id = key_match.group(1)
+        suffix = key_match.group(2)
+        # 带后缀时重置 payload，去掉 fallback_card_type 避免可能的 409 冲突
+        payload = {
+            "key_id": actual_key_id,
+            "redeem_mode": f"{suffix}-gpt-plus-team"
+        }
 
     async with httpx.AsyncClient() as client:
         # Step 1: Query the key status first
@@ -117,6 +128,12 @@ async def get_key_transactions(key_id: str) -> Dict[str, Any]:
         JSON response from the API containing transaction records.
     """
     headers = _get_headers()
+    
+    # 解析并移除可能存在的后缀，仅使用实际的 UUID 进行查询
+    key_match = re.match(r'^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})-(.+)$', key_id.strip())
+    if key_match:
+        key_id = key_match.group(1)
+        
     payload = {"key_id": key_id}
 
     async with httpx.AsyncClient() as client:
