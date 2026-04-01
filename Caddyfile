@@ -1,0 +1,4 @@
+card.howard0717.com {
+    # 反向代理请求给内部的 Docker 容器，8000 是你在 docker-compose 里设定的应用端口
+    reverse_proxy misacard-manager:8000
+}

@@ -7,8 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: misacard-manager
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    # 移除被局域网外直接访问的端口，只供内部 Caddy 反向代理
     volumes:
       # 持久化数据库文件
       - ./data:/app/data
@@ -32,10 +31,29 @@ services:
     networks:
       - misacard-network
 
+  # 新增 Caddy 反向代理自动维护 HTTPS 的容器
+  caddy:
+    image: caddy:2-alpine
+    container_name: misacard-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"   # HTTP 用于自动申请免费证书验证
+      - "443:443" # 业务主要走 HTTPS 加密通道
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - misacard-network
+    depends_on:
+      - misacard-manager
+
 networks:
   misacard-network:
     driver: bridge
 
 volumes:
   misacard-data:
+  caddy_data:
+  caddy_config:
 

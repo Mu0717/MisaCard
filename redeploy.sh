@@ -1,23 +1,15 @@
 #!/usr/bin/env bash
 set -e
 
-echo "==> 拉取最新代码"
-git pull
+echo "==> 拉取最新代码部署"
+git pull || echo "⚠ 拉取新代码有冲突或失败，将尝试继续部署当前本地版本"
 
-echo "==> 构建镜像"
-docker build -t misacard-manager:latest .
+echo "==> 停止应用并清理旧环境"
+docker-compose down || true
 
-echo "==> 停止并删除旧容器（如有）"
-docker rm -f misacard-manager 2>/dev/null || true
+echo "==> 构建并启动新服务包含全自动 HTTPS 网关支持"
+docker-compose up -d --build
 
-echo "==> 启动新容器"
-docker run -d \
-  --name misacard-manager \
-  -p 8000:8000 \
-  -v $(pwd)/data:/app/data \
-  -e DATABASE_URL=sqlite:///./data/cards.db \
-  -e TZ=Asia/Shanghai \
-  --restart unless-stopped \
-  misacard-manager:latest
-
-echo "==> 完成"
+echo "==> 部署启动命令分发完毕！"
+echo "👉 Caddy HTTPS 自动分发程序已在后端工作，请等待 10 秒左右即可验证证书。"
+echo "💡 可选：通过 'docker-compose logs -f' 实时监控状态。"
