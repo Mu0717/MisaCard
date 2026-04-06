@@ -115,8 +115,8 @@ async def redeem_lcard_key(card_key: str) -> Dict[str, Any]:
                             normalized_data["pan"] = parts[0]
                             print(f"[LCard] Extracted PAN: {normalized_data['pan']}")
                             
-                            date_str = parts[1] # 例如 "2030-4"、"2030/4"、"08/33"、"08-33"
-                            # 智能识别日期格式：按分隔符拆分后，根据数字长度判断是"年-月"还是"月/年"
+                            date_str = parts[1] # 例如 "2030-4"、"2030/4"、"08/33"、"08-33"、"0529"
+                            # 智能识别日期格式：先检查是否包含分隔符，再处理纯数字
                             sep = "-" if "-" in date_str else ("/" if "/" in date_str else None)
                             if sep:
                                 part_a, part_b = date_str.split(sep, 1)
@@ -137,6 +137,28 @@ async def redeem_lcard_key(card_key: str) -> Dict[str, Any]:
                                     normalized_data["exp_month"] = part_a.zfill(2)
                                     normalized_data["exp_year"] = part_b
                                     print(f"[LCard] 警告: 无法确定日期格式，原样保留: {date_str}")
+                            elif date_str.isdigit():
+                                # 纯数字格式，无分隔符
+                                if len(date_str) == 4:
+                                    # 格式: MMYY（如 "0529" → 05月/2029年）
+                                    normalized_data["exp_month"] = date_str[:2]
+                                    normalized_data["exp_year"] = "20" + date_str[2:]
+                                elif len(date_str) == 3:
+                                    # 格式: MYY（如 "529" → 5月/2029年）
+                                    normalized_data["exp_month"] = date_str[:1].zfill(2)
+                                    normalized_data["exp_year"] = "20" + date_str[1:]
+                                elif len(date_str) == 6:
+                                    # 格式: MMYYYY（如 "052029" → 05月/2029年）
+                                    normalized_data["exp_month"] = date_str[:2]
+                                    normalized_data["exp_year"] = date_str[2:]
+                                else:
+                                    # 兜底：无法识别的纯数字格式
+                                    normalized_data["exp_month"] = date_str[:2].zfill(2)
+                                    normalized_data["exp_year"] = date_str[2:] if len(date_str) > 2 else date_str
+                                    print(f"[LCard] 警告: 无法确定纯数字日期格式，尝试拆分: {date_str}")
+                            else:
+                                # 兜底：非数字也非分隔符格式，原样记录
+                                print(f"[LCard] 警告: 无法解析日期字段: {date_str}")
                             
                             normalized_data["cvv"] = parts[2]
                             print(f"[LCard] Extracted Date: {normalized_data.get('exp_year')}-{normalized_data.get('exp_month')}, CVV: {normalized_data.get('cvv')}")
