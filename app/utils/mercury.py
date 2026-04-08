@@ -53,7 +53,7 @@ async def redeem_key(key_id: str) -> Dict[str, Any]:
     payload = {"key_id": key_id, "fallback_card_type": "debit"}
     # 特殊后缀集合：这些后缀的 redeem_mode 直接用后缀本身，不拼接 -gpt-plus-team
     # key_id 统一使用卡密本身的 UUID
-    SUFFIX_NO_TEAM_POSTFIX = {"458178"}
+    SUFFIX_NO_TEAM_POSTFIX = {"458178", "446222"}
 
     # 解析可能存在的后缀格式 (如 UUID-520524 / UUID-458178)
     key_match = re.match(r'^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})-(.+)$', key_id.strip())
@@ -76,25 +76,31 @@ async def redeem_key(key_id: str) -> Dict[str, Any]:
             }
 
     async with httpx.AsyncClient() as client:
-        # Step 1: Query the key status first
+        # Step 1: 先查询卡密状态（仅用于判断是否已激活，失败不阻塞 redeem）
         try:
             query_response = await client.post(MERCURY_QUERY_URL, json=payload, headers=headers)
-            query_data = query_response.json()
             
-            # If success is True, it means the card is already active
-            if query_data.get("success") is True:
-                return query_data
+            # 只有 HTTP 200 时才解析并判断
+            if query_response.status_code == 200:
+                query_data = query_response.json()
                 
-            # If success is False and error is "卡密未使用" (Card unused), proceed to redeem
-            if query_data.get("success") is False and query_data.get("error") == "卡密未使用":
-                pass # Continue to redeem
+                # 卡密已激活，直接返回
+                if query_data.get("success") is True:
+                    return query_data
+                    
+                # 卡密未使用，继续走 redeem 流程
+                if query_data.get("success") is False and query_data.get("error") == "卡密未使用":
+                    pass  # 继续到 Step 2 redeem
+                else:
+                    # 其他错误（如无效卡密），也继续尝试 redeem，让 redeem 接口做最终判断
+                    print(f"[Mercury] Query 返回非预期结果，继续尝试 redeem: {query_data}")
             else:
-                # If it's another error (e.g. invalid key), return the query result
-                return query_data
+                # HTTP 非 200（如 400），跳过 query 直接 redeem
+                print(f"[Mercury] Query 返回 HTTP {query_response.status_code}，跳过查询直接 redeem")
                 
         except Exception as e:
-            print(f"Error checking key status: {e}")
-            return {"success": False, "error": f"Network/Query Error: {str(e)}"}
+            # query 异常不阻塞 redeem
+            print(f"[Mercury] Query 异常（不影响 redeem）: {e}")
 
         # Step 2: Redeem if unused
         response = await client.post(MERCURY_REDEEM_URL, json=payload, headers=headers)
