@@ -40,22 +40,31 @@ async def redeem_nodecard_key(card_key: str) -> Dict[str, Any]:
     }
 
     payload = {
-        "card_key": real_key
+        "card_key": real_key,
+        
     }
 
-    async with httpx.AsyncClient() as client:
+    async def _do_redeem(client, req_payload, attempt_label):
+        """
+        执行单次激活请求的内部辅助函数
+
+        Args:
+            client: httpx 异步客户端
+            req_payload: 请求体
+            attempt_label: 日志标签（用于区分第几次尝试）
+        """
         try:
-            print(f"[NodeCard] 激活卡密: {real_key}")
+            print(f"[NodeCard] {attempt_label} 激活卡密: {real_key}, 参数: {req_payload}")
             response = await client.post(
                 NODECARD_API_URL,
-                json=payload,
+                json=req_payload,
                 headers=headers,
                 timeout=30.0
             )
 
-            print(f"[NodeCard] 响应状态码: {response.status_code}")
+            print(f"[NodeCard] {attempt_label} 响应状态码: {response.status_code}")
             data = response.json()
-            print(f"[NodeCard] 响应数据: {data}")
+            print(f"[NodeCard] {attempt_label} 响应数据: {data}")
 
             # NodeCard 的成功标志是 code == 1
             # code == 1 且 msg == "Card already in use" 也算成功（卡片已激活，返回信息）
@@ -95,21 +104,35 @@ async def redeem_nodecard_key(card_key: str) -> Dict[str, Any]:
                     "nodecard_msg": data.get("msg"),
                 }
 
-                print(f"[NodeCard] 标准化数据: {normalized}")
+                print(f"[NodeCard] {attempt_label} 标准化数据: {normalized}")
                 return normalized
 
             # 失败情况
             error_msg = data.get("msg", "Unknown error")
-            print(f"[NodeCard] 激活失败: {error_msg}")
+            print(f"[NodeCard] {attempt_label} 激活失败: {error_msg}")
             return {
                 "success": False,
-                "error": f"NodeCard 激活失败: {error_msg}",
+                "error": f"{error_msg}",
                 "original_response": data
             }
 
         except Exception as e:
-            print(f"[NodeCard] 请求异常: {e}")
+            print(f"[NodeCard] {attempt_label} 请求异常: {e}")
             return {"success": False, "error": f"Network Error: {str(e)}"}
+
+    async with httpx.AsyncClient() as client:
+        # 第一次尝试：使用原始参数激活
+        result = await _do_redeem(client, payload, "第1次尝试")
+
+        if result.get("success"):
+            return result
+
+        # 第一次失败，进行第二次尝试：追加 platform_id 参数
+        print(f"[NodeCard] 第1次激活失败，尝试追加 platform_id=1 进行第2次激活...")
+        retry_payload = {**payload, "platform_id": 1}
+        result = await _do_redeem(client, retry_payload, "第2次尝试(platform_id=1)")
+
+        return result
 
 
 NODECARD_TRANSACTIONS_URL = "https://api.node-card.com/api/open/card/transactions"
