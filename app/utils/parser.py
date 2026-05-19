@@ -86,10 +86,10 @@ def parse_card_line(line: str) -> Optional[Dict]:
                 "card_header": None
             }
             
-    # 4. 尝试匹配 CDK 格式
+    # 4. 尝试匹配 CDK 格式（含 -EFUN 等字母后缀）
     # 示例: CDK-PB7RL-HQSR4-7P4SE-5A53F-4BQGN
-    # 匹配 CDK- 后面跟一系列大写字母数字组合
-    cdk_pattern = r'(?:卡密:\s*)?(CDK-[A-Z0-9]+(?:-[A-Z0-9]+)+)'
+    #         CDK-84ZQ2-A84K3-ALMYB-9ZYXR-X4VX8-EFUN
+    cdk_pattern = r'(?:卡密:\s*)?(CDK-[A-Z0-9]+(?:-[A-Z0-9]+)*(?:-[A-Z]+)?)'
     match = re.search(cdk_pattern, line)
     if match:
         card_id = match.group(1).strip()
@@ -196,11 +196,12 @@ def validate_card_id(card_id: str) -> bool:
         if re.match(r'^[A-Za-z0-9-]+$', prefix):
             return True
 
-    # 4. 检查 CDK- 开头的格式
+    # 4. 检查 CDK- 开头的格式（支持 -EFUN 等字母后缀）
     # 示例: CDK-PB7RL-HQSR4-7P4SE-5A53F-4BQGN
-    if card_id.startswith('CDK-'):
-        # 简单验证：CDK- 后跟字母、数字和连字符，长度通常较长
-        if re.match(r'^CDK-[A-Z0-9-]+$', card_id):
+    #         CDK-84ZQ2-A84K3-ALMYB-9ZYXR-X4VX8-EFUN
+    if card_id.upper().startswith('CDK-'):
+        # 允许大写字母、数字和连字符，包括末尾的纯字母后缀（如 -EFUN）
+        if re.match(r'^CDK-[A-Z0-9]+(?:-[A-Z0-9]+)*(?:-[A-Z]+)?$', card_id.upper()):
             return True
 
     # 5. 检查 LR- 开头的格式

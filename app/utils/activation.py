@@ -29,18 +29,19 @@ async def get_card_transactions(card_identifier: str) -> Tuple[bool, Optional[Di
     Args:
         card_identifier: 卡号 或 卡密ID (如 CDK-xxx)
     """
-    # 1. Vocard (CDK/LR)
-    if card_identifier.upper().startswith(("CDK-", "LR-")):
-        print(f"[查询交易记录] 检测到 Vocard ID: {card_identifier}")
-        res = await get_vocard_transactions(card_identifier)
+    # 1. Efuncard 优先（-EFUN 后缀），必须在 Vocard CDK- 判断之前
+    # 防止 CDK-XXXX-EFUN 格式被误路由到 Vocard
+    if is_efuncard_key(card_identifier):
+        print(f"[查询交易记录] 检测到 Efuncard Key: {card_identifier}")
+        res = await get_efuncard_transactions(card_identifier)
         if res.get("success"):
             return True, res, None
         return False, None, res.get("error")
 
-    # 1.1 Efuncard (-EFUN)
-    if is_efuncard_key(card_identifier):
-        print(f"[查询交易记录] 检测到 Efuncard Key: {card_identifier}")
-        res = await get_efuncard_transactions(card_identifier)
+    # 1.1 Vocard (LR-/CDK- 前缀，且不含 -EFUN 后缀)
+    if card_identifier.upper().startswith(("CDK-", "LR-")):
+        print(f"[查询交易记录] 检测到 Vocard ID: {card_identifier}")
+        res = await get_vocard_transactions(card_identifier)
         if res.get("success"):
             return True, res, None
         return False, None, res.get("error")
@@ -103,36 +104,42 @@ async def activate_card_via_api(card_id: str, max_retries: int = None, retry_del
         
         response_data = {}
         
-        # 路由逻辑优化
-        # 1. 明确的 Holy 特征
+        # ----------------------------------------------------------------
+        # 路由优先级（从高到低）：
+        # 后缀精确匹配 > 前缀模糊匹配 > UUID 格式
+        # 重要：Efuncard (-EFUN) 必须在 Vocard (CDK-) 之前，
+        #       因为 CDK-XXXX-EFUN 同时满足两个条件
+        # ----------------------------------------------------------------
+
+        # 1. Holy 特征（明确后缀/前缀）
         if card_id.endswith("-Cursor") or card_id.startswith(("EWCC-", "AWCC-", "UWCC-")):
             print(f"[激活卡片] 检测到 Holy 特征 (前缀/后缀)，使用 Holy API")
             response_data = await redeem_holy_key(card_id)
-            
-        # 2. Vocard 特征
+
+        # 2. Efuncard 特征（-EFUN 后缀）—— 必须在 Vocard CDK- 之前！
+        elif is_efuncard_key(card_id):
+            print(f"[激活卡片] 检测到 Efuncard 特征 (-EFUN / CDK-XXXX-EFUN)，使用 Efuncard API")
+            response_data = await redeem_efuncard_key(card_id)
+
+        # 3. Vocard 特征（LR-/CDK- 前缀，且不含 -EFUN 后缀）
         elif card_id.upper().startswith(("LR-", "CDK-")):
             print(f"[激活卡片] 检测到 Vocard 特征 (LR-/CDK-)，使用 Vocard API")
             response_data = await redeem_vocard_key(card_id)
 
-        # 3. LCard 特征
+        # 4. LCard 特征
         elif card_id.endswith("-L"):
             print(f"[激活卡片] 检测到 LCard 特征 (-L)，使用 LCard API")
             response_data = await redeem_lcard_key(card_id)
 
-        # 3.5 NodeCard 特征 (UUID-node 格式)
+        # 5. NodeCard 特征 (UUID-node 格式)
         elif is_nodecard_key(card_id):
             print(f"[激活卡片] 检测到 NodeCard 特征 (-node)，使用 NodeCard API")
             response_data = await redeem_nodecard_key(card_id)
-            
-        # 3.6 ncetCard 特征 (-NCET 后缀)
+
+        # 6. ncetCard 特征 (-NCET 后缀)
         elif is_ncetcard_key(card_id):
             print(f"[激活卡片] 检测到 ncetCard 特征 (-NCET)，使用 ncetCard API")
             response_data = await redeem_ncetcard_key(card_id)
-            
-        # 3.7 Efuncard 特征 (-EFUN 后缀)
-        elif is_efuncard_key(card_id):
-            print(f"[激活卡片] 检测到 Efuncard 特征 (-EFUN)，使用 Efuncard API")
-            response_data = await redeem_efuncard_key(card_id)
             
         # 3. Airwallex 特征 (UUID-XXXX 格式，如 ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5-4513)
         elif is_airwallex_key(card_id):
