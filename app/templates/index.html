@@ -278,6 +278,27 @@
           </a>
           <a
             href="#"
+            onclick="showPage('card-status')"
+            id="nav-card-status"
+            class="sidebar-item flex items-center px-6 py-3 text-gray-700"
+          >
+            <svg
+              class="w-5 h-5 mr-3"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+              />
+            </svg>
+            卡密状态查询
+          </a>
+          <a
+            href="#"
             onclick="showPage('query')"
             id="nav-query"
             class="sidebar-item flex items-center px-6 py-3 text-gray-700"
@@ -719,7 +740,13 @@
 
           <div class="bg-white rounded-lg shadow p-6">
             <h3 class="text-xl font-bold text-gray-800 mb-4">快速操作</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <button
+                onclick="showPage('card-status')"
+                class="bg-cyan-600 text-white px-6 py-3 rounded-lg hover:bg-cyan-700 transition"
+              >
+                查询卡密状态
+              </button>
               <button
                 onclick="showPage('query')"
                 class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition"
@@ -1219,6 +1246,113 @@
           </div>
         </div>
 
+        <!-- 卡密状态查询页面（仅管理员） -->
+        <div id="page-card-status" class="p-8 hidden">
+          <div class="mb-6">
+            <h2 class="text-3xl font-bold text-gray-800">卡密状态查询</h2>
+            <p class="mt-2 text-gray-500">
+              自动识别卡密供应商并查询远程实时状态；只查询，不会激活或兑换。
+            </p>
+          </div>
+
+          <div class="max-w-6xl">
+            <div class="bg-white rounded-lg shadow p-4 flex gap-3 mb-4 max-w-2xl">
+              <button
+                id="statusSingleModeBtn"
+                onclick="switchStatusQueryMode('single')"
+                class="flex-1 py-2 px-4 rounded-lg font-semibold bg-cyan-600 text-white hover:bg-cyan-700 transition"
+              >
+                单张查询
+              </button>
+              <button
+                id="statusBatchModeBtn"
+                onclick="switchStatusQueryMode('batch')"
+                class="flex-1 py-2 px-4 rounded-lg font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+              >
+                批量查询
+              </button>
+            </div>
+
+            <div id="statusSingleQueryMode" class="max-w-4xl">
+              <form
+                class="bg-white rounded-lg shadow p-6 mb-6"
+                onsubmit="queryCardStatus(event)"
+              >
+                <label
+                  for="statusQueryCardId"
+                  class="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  完整卡密
+                </label>
+                <div class="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    id="statusQueryCardId"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="请输入要查询的完整卡密"
+                    class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    id="statusQueryButton"
+                    class="bg-cyan-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-cyan-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    查询状态
+                  </button>
+                </div>
+              </form>
+
+              <div id="statusQueryResult" class="hidden"></div>
+              <div
+                id="statusQueryError"
+                class="hidden bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg"
+                role="alert"
+              ></div>
+            </div>
+
+            <div id="statusBatchQueryMode" class="hidden">
+              <form
+                class="bg-white rounded-lg shadow p-6 mb-6 max-w-4xl"
+                onsubmit="batchQueryCardStatus(event)"
+              >
+                <label
+                  for="statusBatchCardIds"
+                  class="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  批量卡密（每行一个，最多 100 个）
+                </label>
+                <textarea
+                  id="statusBatchCardIds"
+                  rows="12"
+                  spellcheck="false"
+                  placeholder="每行输入一个完整卡密"
+                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm"
+                  required
+                ></textarea>
+                <p class="mt-2 text-sm text-gray-500">
+                  自动去重，最多并发查询 5 张；单条失败不会中断其他卡密。
+                </p>
+                <button
+                  type="submit"
+                  id="statusBatchQueryButton"
+                  class="mt-4 w-full bg-cyan-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-cyan-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  开始批量查询
+                </button>
+              </form>
+
+              <div id="statusBatchQueryResult" class="hidden"></div>
+              <div
+                id="statusBatchQueryError"
+                class="hidden bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg max-w-4xl"
+                role="alert"
+              ></div>
+            </div>
+          </div>
+        </div>
+
         <!-- 查询激活页面 -->
         <div id="page-query" class="p-8 hidden">
           <h2 class="text-3xl font-bold text-gray-800 mb-6">查询并激活卡片</h2>
@@ -1706,7 +1840,12 @@
         document.getElementById("guestStatus").classList.remove("hidden");
 
         // 禁用需要登录的导航项
-        const restrictedPages = ["dashboard", "cards", "import"];
+        const restrictedPages = [
+          "dashboard",
+          "cards",
+          "card-status",
+          "import",
+        ];
         restrictedPages.forEach((page) => {
           const navItem = document.getElementById("nav-" + page);
           if (navItem) {
@@ -1732,7 +1871,13 @@
         document.getElementById("guestStatus").classList.add("hidden");
 
         // 启用所有导航项
-        const allPages = ["dashboard", "cards", "query", "import"];
+        const allPages = [
+          "dashboard",
+          "cards",
+          "card-status",
+          "query",
+          "import",
+        ];
         allPages.forEach((page) => {
           const navItem = document.getElementById("nav-" + page);
           if (navItem) {
@@ -1803,7 +1948,8 @@
             // 只对需要鉴权的接口才跳转登录页
             // 查询和激活接口不需要鉴权，所以不应该跳转
             const needsAuth =
-              !url.includes("/activate") && !url.includes("/query");
+              url.includes("/status/query") ||
+              (!url.includes("/activate") && !url.includes("/query"));
             if (needsAuth) {
               showToast("登录已过期，请重新登录", "error");
               setTimeout(() => {
@@ -2360,8 +2506,407 @@
           inactive: '<span class="badge badge-inactive">未激活</span>',
           expired: '<span class="badge badge-expired">已过期</span>',
           deleted: '<span class="badge badge-deleted">已删除</span>',
+          not_found:
+            '<span class="badge bg-red-100 text-red-800">卡密不存在</span>',
+          unknown:
+            '<span class="badge bg-gray-100 text-gray-700">状态未知</span>',
         };
-        return badges[status] || '<span class="badge">' + status + "</span>";
+        return (
+          badges[status] ||
+          '<span class="badge">' + escapeHtml(status || "未知") + "</span>"
+        );
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function getFlagBadge(value, trueText, falseText) {
+        if (value == null) {
+          return '<span class="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">未知</span>';
+        }
+        return value
+          ? `<span class="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">${escapeHtml(trueText)}</span>`
+          : `<span class="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">${escapeHtml(falseText)}</span>`;
+      }
+
+      function switchStatusQueryMode(mode) {
+        const singleMode = document.getElementById("statusSingleQueryMode");
+        const batchMode = document.getElementById("statusBatchQueryMode");
+        const singleBtn = document.getElementById("statusSingleModeBtn");
+        const batchBtn = document.getElementById("statusBatchModeBtn");
+        const activeClasses = [
+          "bg-cyan-600",
+          "text-white",
+          "hover:bg-cyan-700",
+        ];
+        const inactiveClasses = [
+          "bg-gray-200",
+          "text-gray-700",
+          "hover:bg-gray-300",
+        ];
+
+        singleMode.classList.toggle("hidden", mode !== "single");
+        batchMode.classList.toggle("hidden", mode !== "batch");
+
+        singleBtn.classList.remove(...activeClasses, ...inactiveClasses);
+        batchBtn.classList.remove(...activeClasses, ...inactiveClasses);
+        singleBtn.classList.add(...(mode === "single" ? activeClasses : inactiveClasses));
+        batchBtn.classList.add(...(mode === "batch" ? activeClasses : inactiveClasses));
+      }
+
+      // 管理后台：查询单张卡密远程状态，不触发激活
+      async function queryCardStatus(event) {
+        event.preventDefault();
+
+        const input = document.getElementById("statusQueryCardId");
+        const button = document.getElementById("statusQueryButton");
+        const resultDiv = document.getElementById("statusQueryResult");
+        const errorDiv = document.getElementById("statusQueryError");
+        const cardId = input.value.trim();
+
+        if (!cardId) {
+          errorDiv.textContent = "请输入完整卡密";
+          errorDiv.classList.remove("hidden");
+          resultDiv.classList.add("hidden");
+          return;
+        }
+
+        button.disabled = true;
+        button.textContent = "查询中...";
+        errorDiv.classList.add("hidden");
+        resultDiv.classList.add("hidden");
+
+        try {
+          const response = await fetchWithAuth("/api/cards/status/query", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ card_id: cardId }),
+          });
+          const payload = await response.json();
+
+          if (!response.ok || !payload.success) {
+            throw new Error(payload.detail || payload.message || "查询失败");
+          }
+
+          displayCardStatus(payload.data);
+        } catch (error) {
+          errorDiv.textContent = error.message || "查询失败，请稍后重试";
+          errorDiv.classList.remove("hidden");
+        } finally {
+          button.disabled = false;
+          button.textContent = "查询状态";
+        }
+      }
+
+      let lastBatchStatusPayload = null;
+
+      async function batchQueryCardStatus(event) {
+        event.preventDefault();
+
+        const textarea = document.getElementById("statusBatchCardIds");
+        const button = document.getElementById("statusBatchQueryButton");
+        const resultDiv = document.getElementById("statusBatchQueryResult");
+        const errorDiv = document.getElementById("statusBatchQueryError");
+        const cardIds = [
+          ...new Set(
+            textarea.value
+              .split(/\r?\n/)
+              .map((item) => item.trim())
+              .filter(Boolean),
+          ),
+        ];
+
+        if (cardIds.length === 0) {
+          errorDiv.textContent = "请输入至少一个卡密";
+          errorDiv.classList.remove("hidden");
+          resultDiv.classList.add("hidden");
+          return;
+        }
+        if (cardIds.length > 100) {
+          errorDiv.textContent = `一次最多查询 100 个卡密，当前共 ${cardIds.length} 个`;
+          errorDiv.classList.remove("hidden");
+          resultDiv.classList.add("hidden");
+          return;
+        }
+
+        button.disabled = true;
+        button.textContent = `正在查询 ${cardIds.length} 个卡密...`;
+        errorDiv.classList.add("hidden");
+        resultDiv.classList.add("hidden");
+
+        try {
+          const response = await fetchWithAuth("/api/cards/status/batch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ card_ids: cardIds, concurrency: 5 }),
+          });
+          const payload = await response.json();
+
+          if (!response.ok || !payload.success) {
+            throw new Error(payload.detail || payload.message || "批量查询失败");
+          }
+
+          displayBatchCardStatus(payload);
+        } catch (error) {
+          errorDiv.textContent = error.message || "批量查询失败，请稍后重试";
+          errorDiv.classList.remove("hidden");
+        } finally {
+          button.disabled = false;
+          button.textContent = "开始批量查询";
+        }
+      }
+
+      function getInactiveBatchStatusItems() {
+        return (lastBatchStatusPayload?.items || []).filter(
+          (item) =>
+            item.success &&
+            item.data &&
+            (item.data.remote_status === "inactive" ||
+              item.data.status === "inactive"),
+        );
+      }
+
+      async function filterAndCopyInactiveStatusCards() {
+        const inactiveItems = getInactiveBatchStatusItems();
+        if (inactiveItems.length === 0) {
+          showToast("没有查询到未激活卡密", "info");
+          return;
+        }
+
+        const text = inactiveItems
+          .map((item) => item.data.card_id || item.card_id)
+          .join("\n");
+
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            fallbackCopyToClipboard(text);
+          }
+          displayBatchCardStatus(lastBatchStatusPayload, true);
+          showToast(
+            `已筛选并复制 ${inactiveItems.length} 个未激活卡密`,
+            "success",
+          );
+        } catch (error) {
+          fallbackCopyToClipboard(text);
+          displayBatchCardStatus(lastBatchStatusPayload, true);
+          showToast(
+            `已筛选并复制 ${inactiveItems.length} 个未激活卡密`,
+            "success",
+          );
+        }
+      }
+
+      function showAllBatchStatusCards() {
+        if (lastBatchStatusPayload) {
+          displayBatchCardStatus(lastBatchStatusPayload, false);
+        }
+      }
+
+      function displayBatchCardStatus(payload, onlyInactive = false) {
+        const resultDiv = document.getElementById("statusBatchQueryResult");
+        const errorDiv = document.getElementById("statusBatchQueryError");
+        lastBatchStatusPayload = payload;
+        const inactiveItems = getInactiveBatchStatusItems();
+        const displayedItems = onlyInactive
+          ? inactiveItems
+          : payload.items || [];
+        const rows = displayedItems
+          .map((item, index) => {
+            if (!item.success || !item.data) {
+              return `
+                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                  <td class="px-4 py-3 text-sm text-gray-500">${index + 1}</td>
+                  <td class="px-4 py-3 text-sm font-mono break-all">${escapeHtml(item.card_id)}</td>
+                  <td class="px-4 py-3 text-sm text-gray-500">-</td>
+                  <td class="px-4 py-3"><span class="badge bg-red-100 text-red-800">查询失败</span></td>
+                  <td class="px-4 py-3 text-sm text-red-600">${escapeHtml(item.message || "查询失败")}</td>
+                  <td class="px-4 py-3 text-sm text-gray-500">-</td>
+                </tr>
+              `;
+            }
+
+            const card = item.data;
+            const actualStatus = checkCardExpiration(card);
+            return `
+              <tr class="border-b border-gray-100 hover:bg-gray-50">
+                <td class="px-4 py-3 text-sm text-gray-500">${index + 1}</td>
+                <td class="px-4 py-3 text-sm font-mono break-all">${escapeHtml(card.card_id)}</td>
+                <td class="px-4 py-3 text-sm font-medium">${escapeHtml(card.provider_label || "-")}</td>
+                <td class="px-4 py-3">${getStatusBadge(actualStatus)}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(card.remote_message || item.message || "查询成功")}</td>
+                <td class="px-4 py-3 text-sm">${card.local_exists ? '<span class="text-green-700">已收录</span>' : '<span class="text-gray-500">未收录</span>'}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        errorDiv.classList.add("hidden");
+        resultDiv.innerHTML = `
+          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-4 fade-in">
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-cyan-500">
+              <p class="text-sm text-gray-500">总数</p>
+              <p class="text-2xl font-bold text-gray-900">${escapeHtml(payload.total)}</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+              <p class="text-sm text-gray-500">查询完成</p>
+              <p class="text-2xl font-bold text-green-700">${escapeHtml(payload.success_count)}</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+              <p class="text-sm text-gray-500">查询失败</p>
+              <p class="text-2xl font-bold text-red-700">${escapeHtml(payload.failed_count)}</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
+              <p class="text-sm text-gray-500">未激活</p>
+              <p class="text-2xl font-bold text-orange-700">${escapeHtml(inactiveItems.length)}</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-lg shadow p-4 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 fade-in">
+            <p class="text-sm text-gray-600">
+              ${onlyInactive ? `当前仅显示 ${inactiveItems.length} 个未激活卡密` : `严格按远程状态筛选，共 ${inactiveItems.length} 个未激活卡密`}
+            </p>
+            <div class="flex flex-col sm:flex-row gap-2">
+              ${
+                onlyInactive
+                  ? `<button onclick="showAllBatchStatusCards()" class="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition">显示全部</button>`
+                  : ""
+              }
+              <button
+                onclick="filterAndCopyInactiveStatusCards()"
+                ${inactiveItems.length === 0 ? "disabled" : ""}
+                class="px-4 py-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                一键筛选并复制未激活卡密 (${inactiveItems.length})
+              </button>
+            </div>
+          </div>
+          <div class="bg-white rounded-lg shadow overflow-hidden fade-in">
+            <div class="overflow-x-auto">
+              <table class="min-w-full">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">#</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">卡密</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">供应商</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">状态</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">远程返回</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">本地记录</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>
+        `;
+        resultDiv.classList.remove("hidden");
+      }
+
+      function displayCardStatus(card) {
+        const resultDiv = document.getElementById("statusQueryResult");
+        const errorDiv = document.getElementById("statusQueryError");
+        const actualStatus = checkCardExpiration(card);
+        const expireInfo = getExpireInfo(card);
+
+        errorDiv.classList.add("hidden");
+        resultDiv.innerHTML = `
+          <div class="bg-white rounded-lg shadow overflow-hidden fade-in">
+            <div class="px-6 py-5 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p class="text-sm text-gray-500">${escapeHtml(card.provider_label || "未知供应商")} · 远程实时查询</p>
+                <h3 class="mt-1 text-lg font-semibold text-gray-900 break-all">${escapeHtml(card.card_id)}</h3>
+              </div>
+              <div>${getStatusBadge(actualStatus)}</div>
+            </div>
+
+            <div class="p-6">
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <p class="text-xs text-gray-500 mb-2">激活状态</p>
+                  ${getFlagBadge(card.is_activated, "已激活", "未激活")}
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <p class="text-xs text-gray-500 mb-2">使用状态</p>
+                  ${getFlagBadge(card.is_used, "已使用", "未使用")}
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <p class="text-xs text-gray-500 mb-2">售卖状态</p>
+                  ${getFlagBadge(card.is_sold, "已售卖", "未售卖")}
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <p class="text-xs text-gray-500 mb-2">退款状态</p>
+                  ${getFlagBadge(card.refund_requested, "已申请退款", "未申请退款")}
+                </div>
+              </div>
+
+              <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">供应商</dt>
+                  <dd class="font-medium text-gray-900 text-right">${escapeHtml(card.provider_label || "-")}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">远程返回</dt>
+                  <dd class="font-medium text-gray-900 text-right">${escapeHtml(card.remote_message || "查询成功")}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">昵称</dt>
+                  <dd class="font-medium text-gray-900 text-right">${escapeHtml(card.card_nickname || "-")}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">卡头</dt>
+                  <dd class="font-medium text-gray-900 text-right">${escapeHtml(card.card_header || "-")}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">额度</dt>
+                  <dd class="font-medium text-gray-900">$${escapeHtml(card.card_limit ?? 0)}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">有效时长</dt>
+                  <dd class="font-medium text-gray-900">${card.validity_hours == null ? "-" : `${escapeHtml(card.validity_hours)} 小时`}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">创建时间</dt>
+                  <dd class="font-medium text-gray-900 text-right">${escapeHtml(formatDate(card.create_time))}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">激活时间</dt>
+                  <dd class="font-medium text-gray-900 text-right">${escapeHtml(formatDate(card.card_activation_time))}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">过期时间</dt>
+                  <dd class="${escapeHtml(expireInfo.color)} text-right">${escapeHtml(expireInfo.text)}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">删除时间</dt>
+                  <dd class="font-medium text-gray-900 text-right">${escapeHtml(formatDate(card.delete_date))}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">标记使用时间</dt>
+                  <dd class="font-medium text-gray-900 text-right">${escapeHtml(formatDate(card.used_time))}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">售卖时间</dt>
+                  <dd class="font-medium text-gray-900 text-right">${escapeHtml(formatDate(card.sold_time))}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">退款申请时间</dt>
+                  <dd class="font-medium text-gray-900 text-right">${escapeHtml(formatDate(card.refund_requested_time))}</dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-gray-100 pb-3">
+                  <dt class="text-gray-500">本地记录</dt>
+                  <dd class="font-medium text-gray-900">${card.local_exists ? "已收录" : "未收录"}</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        `;
+        resultDiv.classList.remove("hidden");
       }
 
       // 查询并激活卡片

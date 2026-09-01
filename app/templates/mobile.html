@@ -74,6 +74,21 @@
         opacity: 0.9;
       }
 
+      .btn-danger {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+      }
+
+      .btn-danger:active {
+        transform: scale(0.98);
+        opacity: 0.9;
+      }
+
+      .btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+
       .input-field {
         width: 100%;
         padding: 1rem;
@@ -542,6 +557,14 @@
           </button>
           <button
             class="tab-btn"
+            onclick="switchTab('delete')"
+            id="tab-delete"
+            style="flex: 1 1 50%; border-radius: 0 0 0.75rem 0"
+          >
+            删除卡密
+          </button>
+          <button
+            class="tab-btn"
             onclick="switchTab('cards')"
             id="tab-cards"
             style="display: none; flex: 1 1 50%; border-radius: 0 0 0.75rem 0"
@@ -688,6 +711,48 @@
 
         <!-- Query Result -->
         <div id="queryResult"></div>
+      </div>
+
+      <!-- Delete Redeemed Card -->
+      <div id="content-delete" class="tab-content" style="display: none">
+        <div class="card">
+          <h2
+            style="
+              font-size: 1.25rem;
+              font-weight: 700;
+              margin-bottom: 1rem;
+              color: #111827;
+            "
+          >
+            删除已激活卡密
+          </h2>
+          <div class="alert alert-error" style="font-size: 0.875rem">
+            <strong>⚠️ 注意：</strong>此操作会删除远程激活记录，执行后无法撤销，请确认卡密无误。
+          </div>
+          <label
+            style="
+              display: block;
+              font-weight: 600;
+              color: #374151;
+              margin-bottom: 0.5rem;
+              font-size: 0.875rem;
+            "
+          >
+            已激活卡密
+          </label>
+          <input
+            type="text"
+            id="deleteCardCode"
+            class="input-field"
+            placeholder="请输入要删除的已激活卡密"
+            style="margin-bottom: 1rem"
+          />
+          <button id="deleteCardBtn" class="btn btn-danger" onclick="deleteRedeemedCard()">
+            删除已激活卡密
+          </button>
+        </div>
+
+        <div id="deleteCardResult"></div>
       </div>
 
       <!-- Card List -->
@@ -1382,6 +1447,86 @@
           showToast("批量激活失败: " + error.message, "error");
         } finally {
           hideLoading();
+        }
+      }
+
+      // ==================== Delete Redeemed Card ====================
+      async function deleteRedeemedCard() {
+        const input = document.getElementById("deleteCardCode");
+        const button = document.getElementById("deleteCardBtn");
+        const resultDiv = document.getElementById("deleteCardResult");
+        const code = input.value.trim();
+
+        if (!code) {
+          showToast("请输入要删除的已激活卡密", "error");
+          input.focus();
+          return;
+        }
+
+        if (!confirm(`确定要删除已激活卡密“${code}”吗？\n\n此操作无法撤销。`)) {
+          return;
+        }
+
+        const originalButtonText = button.textContent;
+        button.disabled = true;
+        button.textContent = "正在删除...";
+        resultDiv.innerHTML = "";
+        showLoading();
+
+        try {
+          const response = await fetch("/api/redeem/delete", {
+            method: "POST",
+            headers: {
+              Accept: "application/json, text/plain, */*",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ code }),
+            credentials: "include",
+          });
+
+          const responseText = await response.text();
+          let data = null;
+          if (responseText) {
+            try {
+              data = JSON.parse(responseText);
+            } catch (_) {
+              data = responseText;
+            }
+          }
+
+          const message =
+            (data && typeof data === "object" && (data.message || data.detail || data.msg)) ||
+            (typeof data === "string" && data) ||
+            (response.ok ? "删除成功" : `删除失败（HTTP ${response.status}）`);
+
+          if (!response.ok || (data && typeof data === "object" && data.success === false)) {
+            throw new Error(message);
+          }
+
+          resultDiv.innerHTML = `
+            <div class="card fade-in">
+              <div class="alert" style="margin: 0; background: #d1fae5; color: #065f46;">
+                <strong>✅ 删除成功</strong>
+                <p id="deleteSuccessMessage" style="margin-top: 0.5rem;"></p>
+              </div>
+            </div>`;
+          document.getElementById("deleteSuccessMessage").textContent = message;
+          input.value = "";
+          showToast("已删除该激活卡密", "success");
+        } catch (error) {
+          resultDiv.innerHTML = `
+            <div class="card fade-in">
+              <div class="alert alert-error" style="margin: 0;">
+                <strong>❌ 删除失败</strong>
+                <p id="deleteErrorMessage" style="margin-top: 0.5rem;"></p>
+              </div>
+            </div>`;
+          document.getElementById("deleteErrorMessage").textContent = error.message;
+          showToast("删除失败: " + error.message, "error");
+        } finally {
+          hideLoading();
+          button.disabled = false;
+          button.textContent = originalButtonText;
         }
       }
 

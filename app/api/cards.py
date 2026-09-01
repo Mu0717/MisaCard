@@ -12,8 +12,39 @@ from ..database import get_db
 from ..utils.activation import auto_activate_if_needed, extract_card_info, query_card_from_api, get_card_transactions, is_card_activated
 from ..utils.auth import get_current_user
 from ..utils.vocard import verify_3ds_code
+from ..utils.external_status import query_external_card_status
 
 router = APIRouter(prefix="/cards", tags=["cards"])
+
+
+def _merge_card_status_with_local(remote_data: dict, db_card) -> dict:
+    """以远程状态为准，并补充本地后台管理字段。"""
+    result = dict(remote_data)
+    result["local_exists"] = db_card is not None
+
+    if not db_card:
+        return result
+
+    result.update({
+        "card_nickname": db_card.card_nickname,
+        "card_header": db_card.card_header,
+        "card_limit": db_card.card_limit or 0.0,
+        "validity_hours": db_card.validity_hours,
+        "is_used": db_card.is_used,
+        "is_sold": db_card.is_sold,
+        "refund_requested": db_card.refund_requested,
+        "is_external": db_card.is_external,
+        "create_time": db_card.create_time,
+        "delete_date": db_card.delete_date,
+        "used_time": db_card.used_time,
+        "sold_time": db_card.sold_time,
+        "refund_requested_time": db_card.refund_requested_time,
+    })
+    if not result.get("card_activation_time"):
+        result["card_activation_time"] = db_card.card_activation_time
+    if not result.get("exp_date"):
+        result["exp_date"] = db_card.exp_date
+    return result
 
 
 @router.post("/", response_model=schemas.CardResponse, status_code=201)
@@ -66,6 +97,84 @@ async def list_cards(
         "total": total,
         "skip": skip,
         "limit": limit
+    }
+
+
+@router.post("/status/query", response_model=schemas.CardStatusQueryResponse)
+async def query_card_status(
+    request: schemas.CardStatusQueryRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    识别卡密供应商并查询远程实时状态（需要鉴权）。
+
+    此接口只调用供应商的查询接口，不会触发激活或兑换。本地记录仅用于补充
+    昵称、卡头、使用/售卖/退款标记等管理信息。
+    """
+    query_ok, remote_data, error = await query_external_card_status(request.card_id)
+    if not query_ok or not remote_data:
+        raise HTTPException(status_code=502, detail=error or "远程查询失败")
+
+    db_card = crud.get_card_by_id(db, request.card_id)
+    result = _merge_card_status_with_local(remote_data, db_card)
+
+    return {
+        "success": True,
+        "message": result.get("remote_message") or "远程查询成功",
+        "data": result,
+    }
+
+
+@router.post("/status/batch", response_model=schemas.CardStatusBatchQueryResponse)
+async def batch_query_card_status(
+    request: schemas.CardStatusBatchQueryRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """并发查询多张卡密的供应商远程状态（需要鉴权，不触发兑换）。"""
+    semaphore = asyncio.Semaphore(request.concurrency)
+
+    async def query_one(card_id: str) -> dict:
+        try:
+            async with semaphore:
+                query_ok, remote_data, error = await query_external_card_status(card_id)
+
+            if not query_ok or not remote_data:
+                return {
+                    "card_id": card_id,
+                    "success": False,
+                    "message": error or "远程查询失败",
+                    "data": None,
+                }
+
+            db_card = crud.get_card_by_id(db, card_id)
+            result = _merge_card_status_with_local(remote_data, db_card)
+            return {
+                "card_id": card_id,
+                "success": True,
+                "message": result.get("remote_message") or "远程查询成功",
+                "data": result,
+            }
+        except Exception as exc:
+            return {
+                "card_id": card_id,
+                "success": False,
+                "message": f"查询异常：{exc}",
+                "data": None,
+            }
+
+    items = await asyncio.gather(*(query_one(card_id) for card_id in request.card_ids))
+    success_count = sum(1 for item in items if item["success"])
+    failed_count = len(items) - success_count
+
+    return {
+        "success": True,
+        "message": f"批量查询完成：成功 {success_count}，失败 {failed_count}",
+        "total": len(items),
+        "success_count": success_count,
+        "failed_count": failed_count,
+        "items": items,
     }
 
 

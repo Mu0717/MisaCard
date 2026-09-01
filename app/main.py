@@ -10,7 +10,7 @@ import os
 
 from .database import engine
 from . import models
-from .api import cards, imports, auth
+from .api import cards, imports, auth, redeem
 import logging
 
 # 配置日志
@@ -49,6 +49,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api")
 app.include_router(cards.router, prefix="/api")
 app.include_router(imports.router, prefix="/api")
+app.include_router(redeem.router, prefix="/api")
 
 # 静态文件和模板配置
 templates_path = os.path.join(os.path.dirname(__file__), "templates")
