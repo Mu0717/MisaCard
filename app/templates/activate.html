@@ -951,6 +951,54 @@
       }
     }
 
+    function getBatchCardInfoText (cardData) {
+      const card = cardData || {};
+      return `${card.card_number || "N/A"}---${card.card_exp_date || "N/A"}---${card.card_cvc || "N/A"}`;
+    }
+
+    async function copyBatchCardInfo (text) {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          textarea.style.position = "fixed";
+          textarea.style.opacity = "0";
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand("copy");
+          textarea.remove();
+        }
+        showToast("卡片信息已复制", "success");
+      } catch (error) {
+        showToast("复制失败，请手动复制", "error");
+      }
+    }
+
+    function appendBatchSuccessCardRow (container, item) {
+      const cardInfo = getBatchCardInfoText(item.card_data);
+      const row = document.createElement("div");
+      row.className = "flex flex-wrap items-center gap-x-3 gap-y-2 bg-green-50 border border-green-200 rounded p-3 text-xs";
+
+      const cardId = document.createElement("span");
+      cardId.className = "font-semibold text-green-700 break-all";
+      cardId.textContent = `✓ ${item.card_id}`;
+
+      const info = document.createElement("span");
+      info.className = "font-mono text-gray-800 break-all select-all";
+      info.textContent = cardInfo;
+
+      const copyButton = document.createElement("button");
+      copyButton.type = "button";
+      copyButton.className = "ml-auto bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition whitespace-nowrap";
+      copyButton.textContent = "一键复制";
+      copyButton.addEventListener("click", () => copyBatchCardInfo(cardInfo));
+
+      row.append(cardId, info, copyButton);
+      container.appendChild(row);
+    }
+
     async function runBatchActivationRound (cardIds, run, concurrency, onResult) {
       const results = new Array(cardIds.length);
       let nextIndex = 0;
@@ -1066,10 +1114,7 @@
               item.retry_count = round - 1;
               successfulById.set(item.card_id, item);
 
-              const successRow = document.createElement("div");
-              successRow.className = "text-green-600 text-xs mb-1 break-all";
-              successRow.textContent = `✓ ${item.card_id} 激活成功`;
-              liveLog.appendChild(successRow);
+              appendBatchSuccessCardRow(liveLog, item);
               liveLog.scrollTop = liveLog.scrollHeight;
 
               document.getElementById("batchQuerySuccess").textContent = successfulById.size;
@@ -1146,61 +1191,9 @@
 
         if (data.data.success && data.data.success.length > 0) {
           const successListDiv = document.getElementById("successCardsList");
-          for (const item of data.data.success) {
-            try {
-              const cardResponse = await fetch(
-                `/api/cards/${item.card_id}/query`,
-                {
-                  method: "POST",
-                },
-              );
-              if (cardResponse.ok) {
-                const responseData = await cardResponse.json();
-                const cardData = responseData.card_data;
-                const retryText =
-                  item.retry_count > 0 ? ` (重试${item.retry_count}次)` : "";
-                const cardInfoHtml = `
-                                    <div class="bg-green-50 border border-green-200 rounded p-3 text-xs">
-                                        <div class="font-semibold text-green-700 mb-2">✓ ${item.card_id
-                  }${retryText}</div>
-                                        <div class="grid grid-cols-2 gap-2 text-gray-700">
-                                            <div><span class="text-gray-600">卡号:</span> ${cardData.card_number || "N/A"
-                  }</div>
-                                            <div><span class="text-gray-600">CVC:</span> ${cardData.card_cvc || "N/A"
-                  }</div>
-                                            <div><span class="text-gray-600">有效期:</span> ${cardData.card_exp_date || "N/A"
-                  }</div>
-                                            <div><span class="text-gray-600">额度:</span> $${cardData.card_limit || 0
-                  }</div>
-                                            <div class="col-span-2 border-t pt-1 mt-1"><span class="text-gray-600">账单地址:</span> <span class="font-mono text-xs select-all">${cardData.billing_address || "N/A"
-                  }</span></div>
-                                        </div>
-                                        <div class="flex gap-2 mt-2">
-                                            <button onclick="viewCardTransactionsByCardId('${item.card_id}')" 
-                                                    class="flex-1 bg-indigo-500 text-white px-3 py-1 rounded text-xs hover:bg-indigo-600 transition">
-                                                查看使用记录
-                                            </button>
-                                            <button onclick="checkVerificationCode('${String(cardData.card_number).slice(-4)}', 'verification-${item.card_id}')" 
-                                                    class="flex-1 bg-pink-500 text-white px-3 py-1 rounded text-xs hover:bg-pink-600 transition">
-                                                查看验证码
-                                            </button>
-                                        </div>
-                                        <div id="verification-${item.card_id}" class="mt-2 hidden"></div>
-                                        <div id="transactions-${item.card_id}" class="mt-2"></div>
-                                    </div>
-                                `;
-                successListDiv.innerHTML += cardInfoHtml;
-              } else {
-                successListDiv.innerHTML += `<div class="text-green-600 text-xs">✓ ${item.card_id
-                  }${item.retry_count > 0 ? ` (重试${item.retry_count}次)` : ""
-                  }</div>`;
-              }
-            } catch (error) {
-              successListDiv.innerHTML += `<div class="text-green-600 text-xs">✓ ${item.card_id
-                }${item.retry_count > 0 ? ` (重试${item.retry_count}次)` : ""
-                }</div>`;
-            }
-          }
+          data.data.success.forEach((item) => {
+            appendBatchSuccessCardRow(successListDiv, item);
+          });
         }
 
         if (data.data.stopped) {
