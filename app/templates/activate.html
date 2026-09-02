@@ -153,10 +153,21 @@
             <label class="block text-sm font-medium text-gray-700 mb-2">卡密</label>
             <input type="text" id="queryCardId" placeholder="请输入卡密 (例如: mio-xxxxx)"
               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4" />
-            <button onclick="queryCard()"
-              class="w-full bg-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-600 transition">
+            <label class="flex items-center gap-2 mb-4 cursor-pointer select-none">
+              <input type="checkbox" id="continuousActivation"
+                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+              <span class="text-sm text-gray-700">持续激活（失败后每 3 秒自动重试，成功才停止）</span>
+            </label>
+            <button id="queryCardBtn" onclick="queryCard()"
+              class="w-full bg-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-600 transition disabled:opacity-60 disabled:cursor-not-allowed">
               查询并自动激活
             </button>
+            <button id="stopContinuousActivationBtn" onclick="stopContinuousActivation()"
+              class="hidden w-full mt-3 bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-700 transition">
+              停止持续激活
+            </button>
+            <div id="continuousActivationStatus"
+              class="hidden mt-3 px-3 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm"></div>
           </div>
           <div id="queryResult" class="hidden"></div>
           <div id="queryError" class="hidden"></div>
@@ -189,10 +200,21 @@
             <textarea id="batchQueryCardIds" rows="10"
               placeholder="请输入卡密，每行一个&#10;&#10;示例：&#10;mio-xxxxx-xxxxx-xxxxx&#10;mio-yyyyy-yyyyy-yyyyy&#10;mio-zzzzz-zzzzz-zzzzz"
               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 mb-4 font-mono text-sm"></textarea>
-            <button onclick="batchQueryActivate()"
-              class="w-full bg-green-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-600 transition">
+            <label class="flex items-center gap-2 mb-4 cursor-pointer select-none">
+              <input type="checkbox" id="continuousBatchActivation"
+                class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" />
+              <span class="text-sm text-gray-700">持续激活（只重试失败卡密，全部成功才停止）</span>
+            </label>
+            <button id="batchQueryActivateBtn" onclick="batchQueryActivate()"
+              class="w-full bg-green-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-600 transition disabled:opacity-60 disabled:cursor-not-allowed">
               批量激活
             </button>
+            <button id="stopContinuousBatchActivationBtn" onclick="stopContinuousBatchActivation()"
+              class="hidden w-full mt-3 bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-700 transition">
+              停止持续激活
+            </button>
+            <div id="continuousBatchActivationStatus"
+              class="hidden mt-3 px-3 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">批量激活中...</div>
           </div>
           <div id="batchQueryResult" class="hidden"></div>
         </div>
@@ -260,6 +282,19 @@
             </button>
           </div>
           <div id="deleteCardResult" class="hidden"></div>
+
+          <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-2">批量删除卡密</h3>
+            <p class="text-sm text-gray-500 mb-4">每行输入一个已激活卡密，最多 100 个。</p>
+            <textarea id="batchDeleteCardCodes" rows="8"
+              placeholder="每行输入一个卡密&#10;&#10;示例：&#10;34d58591-ce95-4c7d-bfa5-138d5e877462-4513"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 mb-4 font-mono text-sm"></textarea>
+            <button id="batchDeleteCardBtn" onclick="batchDeleteRedeemedCards()"
+              class="w-full bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition disabled:opacity-60 disabled:cursor-not-allowed">
+              批量删除卡密
+            </button>
+          </div>
+          <div id="batchDeleteCardResult" class="hidden"></div>
         </div>
 
         <!-- 验证码查询模式 -->
@@ -379,6 +414,13 @@
     // ==================== 业务逻辑 ====================
 
     function switchQueryMode (mode) {
+      if (mode !== "single" && continuousActivationRun) {
+        stopContinuousActivation();
+      }
+      if (mode !== "batch" && continuousBatchActivationRun) {
+        stopContinuousBatchActivation();
+      }
+
       const singleMode = document.getElementById("singleQueryMode");
       const batchMode = document.getElementById("batchQueryMode");
       const cardNumberMode = document.getElementById("cardNumberQueryMode");
@@ -554,29 +596,127 @@
       resultDiv.innerHTML = html;
     }
 
+    let continuousActivationRun = null;
+
+    function stopContinuousActivation () {
+      if (!continuousActivationRun) return;
+
+      continuousActivationRun.stopped = true;
+      if (continuousActivationRun.controller) {
+        continuousActivationRun.controller.abort();
+      }
+      if (continuousActivationRun.cancelDelay) {
+        continuousActivationRun.cancelDelay();
+      }
+    }
+
+    function waitForActivationRetry (run) {
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          run.cancelDelay = null;
+          resolve();
+        }, 3000);
+        run.cancelDelay = () => {
+          clearTimeout(timer);
+          run.cancelDelay = null;
+          resolve();
+        };
+      });
+    }
+
     async function queryCard () {
-      const cardId = document.getElementById("queryCardId").value.trim();
+      const input = document.getElementById("queryCardId");
+      const continuousCheckbox = document.getElementById("continuousActivation");
+      const activateButton = document.getElementById("queryCardBtn");
+      const stopButton = document.getElementById("stopContinuousActivationBtn");
+      const statusDiv = document.getElementById("continuousActivationStatus");
+      const cardId = input.value.trim();
       if (!cardId) {
         alert("请输入卡密");
         return;
       }
+      if (continuousActivationRun) {
+        showToast("已有持续激活任务正在运行", "info");
+        return;
+      }
 
-      showLoading();
+      const continuous = continuousCheckbox.checked;
+      const run = {
+        stopped: false,
+        attempts: 0,
+        controller: null,
+        cancelDelay: null,
+      };
+      continuousActivationRun = run;
+      input.disabled = true;
+      continuousCheckbox.disabled = true;
+      activateButton.disabled = true;
+      activateButton.textContent = continuous ? "持续激活中..." : "正在激活...";
+      stopButton.classList.toggle("hidden", !continuous);
+      statusDiv.classList.toggle("hidden", !continuous);
+      if (continuous) {
+        document.getElementById("queryError").classList.add("hidden");
+      }
+
+      if (!continuous) showLoading();
       try {
-        const response = await fetch(`/api/cards/${cardId}/activate`, {
-          method: "POST",
-        });
-        const data = await response.json();
+        while (!run.stopped) {
+          run.attempts += 1;
+          if (continuous) {
+            statusDiv.textContent = "激活中...";
+          }
 
-        if (response.ok && data.success) {
-          displayQueryResult(data.card_data);
-        } else {
-          displayQueryError(data.detail || data.message || "查询失败");
+          let response;
+          let data;
+          try {
+            run.controller = new AbortController();
+            response = await fetch(`/api/cards/${encodeURIComponent(cardId)}/activate`, {
+              method: "POST",
+              signal: run.controller.signal,
+            });
+            data = await response.json();
+          } catch (error) {
+            if (run.stopped && error.name === "AbortError") break;
+            data = { detail: "网络错误: " + error.message };
+          } finally {
+            run.controller = null;
+          }
+
+          if (run.stopped) break;
+
+          if (response && response.ok && data.success) {
+            displayQueryResult(data.card_data);
+            if (continuous) {
+              statusDiv.textContent = "激活成功";
+            }
+            showToast("激活成功！", "success");
+            break;
+          }
+
+          const errorMessage = data.detail || data.message || "激活失败";
+          if (!continuous) {
+            displayQueryError(errorMessage);
+            break;
+          }
+
+          statusDiv.textContent = "激活中...";
+          await waitForActivationRetry(run);
         }
-      } catch (error) {
-        displayQueryError("网络错误: " + error.message);
+
+        if (run.stopped && continuous) {
+          statusDiv.textContent = "持续激活已停止";
+          showToast("已停止持续激活", "info");
+        }
       } finally {
-        hideLoading();
+        if (!continuous) hideLoading();
+        input.disabled = false;
+        continuousCheckbox.disabled = false;
+        activateButton.disabled = false;
+        activateButton.textContent = "查询并自动激活";
+        stopButton.classList.add("hidden");
+        if (continuousActivationRun === run) {
+          continuousActivationRun = null;
+        }
       }
     }
 
@@ -748,8 +888,95 @@
             `;
     }
 
+    let continuousBatchActivationRun = null;
+
+    function stopContinuousBatchActivation () {
+      if (!continuousBatchActivationRun) return;
+      continuousBatchActivationRun.stopped = true;
+      for (const controller of continuousBatchActivationRun.controllers || []) {
+        controller.abort();
+      }
+      if (continuousBatchActivationRun.cancelDelay) {
+        continuousBatchActivationRun.cancelDelay();
+      }
+    }
+
+    function waitForBatchActivationRetry (run) {
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          run.cancelDelay = null;
+          resolve();
+        }, 3000);
+        run.cancelDelay = () => {
+          clearTimeout(timer);
+          run.cancelDelay = null;
+          resolve();
+        };
+      });
+    }
+
+    async function activateOneCardForBatch (cardId, run) {
+      const controller = new AbortController();
+      run.controllers.add(controller);
+      try {
+        const response = await fetch(
+          `/api/cards/${encodeURIComponent(cardId)}/activate`,
+          { method: "POST", signal: controller.signal },
+        );
+        const data = await response.json();
+        if (response.ok && data.success) {
+          return {
+            card_id: cardId,
+            success: true,
+            message: data.message || "激活成功",
+            card_data: data.card_data,
+            retry_count: 0,
+          };
+        }
+        return {
+          card_id: cardId,
+          success: false,
+          message: data.detail || data.message || "激活失败",
+          retry_count: 0,
+        };
+      } catch (error) {
+        return {
+          card_id: cardId,
+          success: false,
+          message: error.name === "AbortError" ? "持续激活已停止" : `网络错误: ${error.message}`,
+          retry_count: 0,
+        };
+      } finally {
+        run.controllers.delete(controller);
+      }
+    }
+
+    async function runBatchActivationRound (cardIds, run, concurrency, onResult) {
+      const results = new Array(cardIds.length);
+      let nextIndex = 0;
+
+      async function worker () {
+        while (!run.stopped) {
+          const index = nextIndex++;
+          if (index >= cardIds.length) return;
+          const result = await activateOneCardForBatch(cardIds[index], run);
+          results[index] = result;
+          onResult(result);
+        }
+      }
+
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, cardIds.length) }, () => worker()),
+      );
+      return results.filter(Boolean);
+    }
+
     async function batchQueryActivate () {
       const textarea = document.getElementById("batchQueryCardIds");
+      const continuousCheckbox = document.getElementById("continuousBatchActivation");
+      const activateButton = document.getElementById("batchQueryActivateBtn");
+      const stopButton = document.getElementById("stopContinuousBatchActivationBtn");
+      const statusDiv = document.getElementById("continuousBatchActivationStatus");
       const content = textarea.value.trim();
 
       if (!content) {
@@ -757,10 +984,10 @@
         return;
       }
 
-      const cardIds = content
+      const cardIds = [...new Set(content
         .split(/[\r\n]+/)
         .map((line) => line.trim())
-        .filter((line) => line.length > 0);
+        .filter((line) => line.length > 0))];
 
       if (cardIds.length === 0) {
         showToast("未找到有效的卡密", "error");
@@ -769,15 +996,37 @@
 
       const concurrency = 5;
       const maxRetries = 3;
+      const continuous = continuousCheckbox.checked;
+
+      if (continuousBatchActivationRun) {
+        showToast("已有批量持续激活任务正在运行", "info");
+        return;
+      }
 
       // Note: Using prompt/confirm here as in index.html
       if (
         !confirm(
-          `确定要批量激活 ${cardIds.length} 张卡片吗？\n\n并发数: ${concurrency}\n最大重试: ${maxRetries} 次`,
+          continuous
+            ? `确定要持续激活 ${cardIds.length} 张卡片，直到全部成功吗？`
+            : `确定要批量激活 ${cardIds.length} 张卡片吗？\n\n并发数: ${concurrency}\n最大重试: ${maxRetries} 次`,
         )
       ) {
         return;
       }
+
+      const run = {
+        stopped: false,
+        controllers: new Set(),
+        cancelDelay: null,
+      };
+      continuousBatchActivationRun = run;
+      textarea.disabled = true;
+      continuousCheckbox.disabled = true;
+      activateButton.disabled = true;
+      activateButton.textContent = continuous ? "批量持续激活中..." : "批量激活中...";
+      stopButton.classList.toggle("hidden", !continuous);
+      statusDiv.classList.toggle("hidden", !continuous);
+      statusDiv.textContent = "批量激活中...";
 
       const resultDiv = document.getElementById("batchQueryResult");
       resultDiv.classList.remove("hidden");
@@ -799,34 +1048,86 @@
                 </div>
             `;
 
-      showLoading();
       try {
-        const response = await fetch("/api/cards/batch/activate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            card_ids: cardIds,
-            concurrency: concurrency,
-            max_retries: maxRetries,
-          }),
-        });
+        const successfulById = new Map();
+        let pendingCardIds = [...cardIds];
+        let finalFailed = [];
+        let round = 0;
+        const liveLog = document.getElementById("batchQueryLog");
 
-        const data = await response.json();
+        while (!run.stopped && pendingCardIds.length > 0) {
+          round += 1;
+          const roundResults = await runBatchActivationRound(
+            pendingCardIds,
+            run,
+            concurrency,
+            (item) => {
+              if (!item.success || successfulById.has(item.card_id)) return;
+              item.retry_count = round - 1;
+              successfulById.set(item.card_id, item);
 
-        if (!response.ok) {
-          throw new Error(data.message || "批量激活请求失败");
+              const successRow = document.createElement("div");
+              successRow.className = "text-green-600 text-xs mb-1 break-all";
+              successRow.textContent = `✓ ${item.card_id} 激活成功`;
+              liveLog.appendChild(successRow);
+              liveLog.scrollTop = liveLog.scrollHeight;
+
+              document.getElementById("batchQuerySuccess").textContent = successfulById.size;
+              document.getElementById("batchQueryFailed").textContent =
+                cardIds.length - successfulById.size;
+              document.getElementById("batchQueryProgressBar").style.width =
+                `${Math.round((successfulById.size / cardIds.length) * 100)}%`;
+              showToast(`${item.card_id} 激活成功`, "success");
+            },
+          );
+
+          finalFailed = roundResults
+            .filter((item) => !item.success)
+            .map((item) => ({ ...item, retry_count: round - 1 }));
+          pendingCardIds = finalFailed.map((item) => item.card_id);
+
+          if (pendingCardIds.length === 0) break;
+          if (!continuous && round > maxRetries) break;
+          statusDiv.textContent = "批量激活中...";
+          await waitForBatchActivationRetry(run);
         }
+
+        if (run.stopped) {
+          const stoppedCardIds = cardIds.filter((cardId) => !successfulById.has(cardId));
+          pendingCardIds = stoppedCardIds;
+          finalFailed = stoppedCardIds.map((cardId) => ({
+            card_id: cardId,
+            message: "持续激活已停止",
+            retry_count: 0,
+          }));
+          statusDiv.textContent = "批量持续激活已停止";
+        } else if (continuous) {
+          statusDiv.textContent = "批量激活成功";
+        }
+
+        const data = {
+          data: {
+            total: cardIds.length,
+            success_count: successfulById.size,
+            failed_count: finalFailed.length,
+            success: [...successfulById.values()],
+            failed: finalFailed,
+            stopped: run.stopped,
+          },
+        };
 
         document.getElementById("batchQuerySuccess").textContent =
           data.data.success_count;
         document.getElementById("batchQueryFailed").textContent =
           data.data.failed_count;
-        document.getElementById("batchQueryProgressBar").style.width = "100%";
+        document.getElementById("batchQueryProgressBar").style.width = data.data.stopped
+          ? `${Math.round((data.data.success_count / data.data.total) * 100)}%`
+          : "100%";
 
         const logDiv = document.getElementById("batchQueryLog");
-        let logHtml = `<div class="text-green-600 font-semibold mb-2">✅ 批量激活完成！</div>`;
+        let logHtml = data.data.stopped
+          ? `<div class="text-gray-600 font-semibold mb-2">批量持续激活已停止</div>`
+          : `<div class="text-green-600 font-semibold mb-2">✅ 批量激活完成！</div>`;
         logHtml += `<div class="mb-3">总数: ${data.data.total} | 成功: ${data.data.success_count} | 失败: ${data.data.failed_count}</div>`;
 
         if (data.data.success && data.data.success.length > 0) {
@@ -902,12 +1203,16 @@
           }
         }
 
-        showToast(
-          `批量激活完成！成功: ${data.data.success_count}, 失败: ${data.data.failed_count}`,
-          data.data.failed_count === 0 ? "success" : "warning",
-        );
+        if (data.data.stopped) {
+          showToast("已停止批量持续激活", "info");
+        } else {
+          showToast(
+            `批量激活完成！成功: ${data.data.success_count}, 失败: ${data.data.failed_count}`,
+            data.data.failed_count === 0 ? "success" : "warning",
+          );
+        }
 
-        if (data.data.failed_count === 0) {
+        if (!data.data.stopped && data.data.failed_count === 0) {
           textarea.value = "";
         }
       } catch (error) {
@@ -918,7 +1223,14 @@
         }
         showToast(`批量激活失败: ${error.message}`, "error");
       } finally {
-        hideLoading();
+        textarea.disabled = false;
+        continuousCheckbox.disabled = false;
+        activateButton.disabled = false;
+        activateButton.textContent = "批量激活";
+        stopButton.classList.add("hidden");
+        if (continuousBatchActivationRun === run) {
+          continuousBatchActivationRun = null;
+        }
       }
     }
 
@@ -1328,6 +1640,95 @@
         document.getElementById("deleteErrorMessage").textContent = error.message;
         resultDiv.classList.remove("hidden");
         showToast(`删除失败: ${error.message}`, "error");
+      } finally {
+        hideLoading();
+        button.disabled = false;
+        button.textContent = originalButtonText;
+      }
+    }
+
+    async function batchDeleteRedeemedCards () {
+      const textarea = document.getElementById("batchDeleteCardCodes");
+      const button = document.getElementById("batchDeleteCardBtn");
+      const resultDiv = document.getElementById("batchDeleteCardResult");
+      const codes = [...new Set(
+        textarea.value
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean),
+      )];
+
+      if (codes.length === 0) {
+        showToast("请输入要删除的卡密", "error");
+        textarea.focus();
+        return;
+      }
+      if (codes.length > 100) {
+        showToast("一次最多删除 100 个卡密", "error");
+        return;
+      }
+      if (!confirm(`确定要批量删除 ${codes.length} 个已激活卡密吗？\n\n此操作无法撤销。`)) {
+        return;
+      }
+
+      const originalButtonText = button.textContent;
+      button.disabled = true;
+      button.textContent = "正在批量删除...";
+      resultDiv.classList.add("hidden");
+      showLoading();
+
+      try {
+        const response = await fetch("/api/redeem/delete/batch", {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ codes, concurrency: 5 }),
+          credentials: "include",
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.detail || data.message || "批量删除失败");
+        }
+
+        const result = data.data;
+        resultDiv.innerHTML = `
+          <div class="bg-white rounded-lg shadow p-6">
+            <h4 class="font-bold text-gray-800 mb-2">批量删除完成</h4>
+            <p id="batchDeleteSummary" class="text-sm text-gray-600 mb-4"></p>
+            <div id="batchDeleteItems" class="space-y-2 max-h-80 overflow-y-auto"></div>
+          </div>`;
+        document.getElementById("batchDeleteSummary").textContent =
+          `总数 ${result.total}，成功 ${result.success_count}，失败 ${result.failed_count}`;
+
+        const itemsDiv = document.getElementById("batchDeleteItems");
+        result.items.forEach((item) => {
+          const row = document.createElement("div");
+          row.className = item.success
+            ? "bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded text-sm break-all"
+            : "bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm break-all";
+          row.textContent = `${item.success ? "✓" : "✗"} ${item.code}: ${item.message}`;
+          itemsDiv.appendChild(row);
+        });
+
+        resultDiv.classList.remove("hidden");
+        showToast(
+          `批量删除完成：成功 ${result.success_count}，失败 ${result.failed_count}`,
+          result.failed_count === 0 ? "success" : "info",
+        );
+        if (result.failed_count === 0) {
+          textarea.value = "";
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <div class="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg">
+            <h4 class="font-bold mb-1">批量删除失败</h4>
+            <p id="batchDeleteErrorMessage"></p>
+          </div>`;
+        document.getElementById("batchDeleteErrorMessage").textContent = error.message;
+        resultDiv.classList.remove("hidden");
+        showToast(`批量删除失败: ${error.message}`, "error");
       } finally {
         hideLoading();
         button.disabled = false;
