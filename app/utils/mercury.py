@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional
 MERCURY_REDEEM_URL = "https://actcard.xyz/api/keys/redeem"
 MERCURY_QUERY_URL = "https://actcard.xyz/api/keys/query"
 MERCURY_TRANSACTIONS_URL = "https://actcard.xyz/api/keys/transactions"
-AIRWALLEX_REDEEM_URL = "https://actcard.xyz/api/airwallex/redeem"
+AIRWALLEX_REDEEM_URL = "https://timoes.me/api/redeem/view"
 
 import re
 
@@ -111,7 +111,7 @@ async def redeem_airwallex_key(key_id: str) -> Dict[str, Any]:
     """
     激活 Airwallex 格式卡密
     格式: UUID-XXXX (如 ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5-4513)
-    接口: https://actcard.xyz/api/airwallex/redeem
+    接口: https://timoes.me/api/redeem/view
     
     Args:
         key_id: Airwallex 格式的卡密
@@ -119,17 +119,57 @@ async def redeem_airwallex_key(key_id: str) -> Dict[str, Any]:
     Returns:
         JSON response from the API.
     """
-    headers = _get_headers()
-    
-    # 去掉后缀，只保留纯 UUID 部分 (如 ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5-4513 -> ac1a0db7-7713-4ae0-979f-ceca2c9fc2e5)
-    code = key_id.rsplit("-", 1)[0]
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "origin": "https://timoes.me",
+        "referer": "https://timoes.me/",
+    }
+
+    # 仅移除已识别的 Airwallex 后缀；直接调用时也支持完整 UUID。
+    code = key_id.strip()
+    if is_airwallex_key(code):
+        code = code.rsplit("-", 1)[0]
     payload = {"code": code}
 
     async with httpx.AsyncClient() as client:
         try:
-            print(f"[Airwallex] POST {AIRWALLEX_REDEEM_URL} payload: {payload}")
             response = await client.post(AIRWALLEX_REDEEM_URL, json=payload, headers=headers)
-            return response.json()
+            try:
+                data = response.json()
+            except ValueError:
+                return {"success": False, "error": f"Airwallex 返回非 JSON 响应 (HTTP {response.status_code})"}
+
+            if not isinstance(data, dict):
+                return {"success": False, "error": "Airwallex 响应格式无法解析"}
+            if not response.is_success or data.get("error") or data.get("success") is False:
+                return {
+                    "success": False,
+                    "error": str(data.get("error") or data.get("message") or data.get("detail")
+                                 or f"Airwallex 请求失败 (HTTP {response.status_code})"),
+                }
+            # 新接口没有 success 字段；必须有完整卡片信息才能认定成功。
+            if not all(data.get(field) for field in ("card_number", "exp", "cvc")):
+                return {"success": False, "error": str(data.get("message") or "Airwallex 响应缺少卡片信息")}
+
+            address = data.get("billing_address")
+            if isinstance(address, str):
+                address = {"address1": address.strip()}
+            return {
+                **data,
+                "success": True,
+                "card_type": "airwallex",
+                "card_limit": data.get("limit", 0),
+                # 剩余分钟从查询时刻计算，不能当作原始激活时间。
+                "expire_minutes": data.get("remaining_minutes"),
+                "legal_address": address if isinstance(address, dict) else None,
+                "card": {
+                    "card_id": data.get("card_id"),
+                    "pan": data["card_number"],
+                    "cvv": data["cvc"],
+                    "card_exp_date": data["exp"],
+                },
+            }
         except Exception as e:
             print(f"[Airwallex] 请求失败: {e}")
             return {"success": False, "error": f"Network Error: {str(e)}"}
